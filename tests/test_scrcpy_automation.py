@@ -241,6 +241,31 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result, 0)
         transport.assert_called_once()
 
+
+class FullFlowTests(unittest.TestCase):
+    def test_example_plan_runs_wake_launch_tap_assert_flow(self):
+        xml = (pathlib.Path(__file__).parent / "fixtures" / "uiautomator_checkin.xml").read_text(encoding="utf-8")
+        responses = [
+            mock.Mock(returncode=0, stdout="device\n", stderr=""),
+            mock.Mock(returncode=0, stdout="", stderr=""),
+            mock.Mock(returncode=0, stdout="", stderr=""),
+            mock.Mock(returncode=0, stdout="", stderr=""),
+            mock.Mock(returncode=0, stdout="", stderr=""),
+            mock.Mock(returncode=0, stdout=xml, stderr=""),
+            mock.Mock(returncode=0, stdout="", stderr=""),
+            mock.Mock(returncode=0, stdout="", stderr=""),
+            mock.Mock(returncode=0, stdout=xml.replace("打卡", "打卡成功"), stderr=""),
+            mock.Mock(returncode=0, stdout=b"PNG", stderr=b""),
+        ]
+        transport = FakeAdbTransport(responses)
+        plan = load_plan(pathlib.Path("tools/examples/evening-check-in.json"))
+
+        with tempfile.TemporaryDirectory() as directory, mock.patch("tools.scrcpy_automation.time.sleep"):
+            result = run_plan(plan, transport, pathlib.Path(directory))
+
+        self.assertTrue(result.success, result.error)
+        self.assertIn(["shell", "input", "tap", "540", "1460"], [call[1] for call in transport.calls])
+
     def test_validate_plan_rejects_missing_serial(self):
         with self.assertRaises(PlanValidationError):
             validate_plan({"name": "check-in", "steps": [{"action": "wake"}]})

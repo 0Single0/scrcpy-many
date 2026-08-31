@@ -75,6 +75,16 @@ scrcpy.exe --tcpip=192.168.1.8:5555
 scrcpy.exe --no-device-picker
 ```
 
+还可以在操控窗口时录制可回放的动作计划：
+
+```powershell
+scrcpy.exe --serial 设备序列号 --record-actions evening-actions.json
+```
+
+录制功能默认关闭，只记录触控和键盘事件，并自动插入等待时间；剪贴板、
+文件拖放、手柄以及锁屏凭据不会写入计划。录制出的 JSON 可交给
+`tools/scrcpy_automation.py run` 或 Windows 定时任务执行。
+
 Linux 和 macOS 继续使用上游的标准命令行设备选择行为。
 
 ## 快速使用
@@ -126,6 +136,7 @@ ninja -C D:\scrcpy-build-release
 
 - [Windows 使用说明](doc/windows.md)
 - [Windows 打包脚本说明](tools/README.md)
+- [定时设备自动化与 JSON 动作计划](tools/README.md#scheduled-device-automation)
 - [上游 scrcpy 文档](https://github.com/Genymobile/scrcpy/tree/master/doc)
 
 ## 免责声明
