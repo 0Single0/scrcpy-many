@@ -60,10 +60,12 @@ Add a Windows-only module under `app/src/sys/win/` (or an equivalent
 `device_selector_win.c/.h` boundary) using standard Win32 controls. The dialog
 contains:
 
-- a multi-select list view with serial, state, transport, and model columns;
-- Refresh;
+- a multi-select list box with serial, state, transport, and model columns;
 - Start selected;
 - Cancel.
+
+The list is a fresh ADB snapshot taken before the dialog opens. A refresh
+control can be added later without changing the process/session architecture.
 
 The UI must report ADB invocation failures, leave unauthorized/offline rows
 visible, disable or reject starting non-ready rows, and close all temporary
@@ -99,4 +101,3 @@ before the picker exits.
   unauthorized device, cancel, one selection, multiple selections, and an
   explicit `--serial` invocation.
 - Verify the existing client tests and a Windows release build.
-

@@ -82,6 +82,18 @@ Note that USB debugging is not required to run scrcpy in [OTG mode](doc/otg.md).
  - [Windows](doc/windows.md) (read [how to run](doc/windows.md#run))
  - [macOS](doc/macos.md)
 
+## Multi-device selection on Windows
+
+The Windows build includes a graphical device picker. When `scrcpy.exe` is
+started without a device selector and more than one ready ADB device is
+connected, it shows the connected serials and lets you start one or more
+devices. Each selected device runs in its own regular scrcpy window.
+
+For scripts and automation, pass an explicit selector such as
+`scrcpy --serial 0123456789abcdef`, or disable the picker with
+`scrcpy --no-device-picker`. Linux and macOS keep the standard command-line
+device selection behavior.
+
 
 ## Must-know tips
 

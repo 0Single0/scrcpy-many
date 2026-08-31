@@ -12,7 +12,9 @@ if prebuilt_server == ''
                   install: true,
                   install_dir: 'share/scrcpy')
 else
-    if not prebuilt_server.startswith('/')
+    # Meson uses POSIX-style paths on Unix, while native Windows paths may
+    # start with a drive prefix such as `D:/`.
+    if not prebuilt_server.startswith('/') and not prebuilt_server.contains(':')
         # prebuilt server path is relative to the root scrcpy directory
         prebuilt_server = '../' + prebuilt_server
     endif

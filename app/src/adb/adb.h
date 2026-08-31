@@ -95,6 +95,16 @@ bool
 sc_adb_disconnect(struct sc_intr *intr, const char *ip_port, unsigned flags);
 
 /**
+ * Execute `adb devices -l` and append all parsed entries to `out_vec`.
+ *
+ * The returned entries own their strings and must be released with
+ * sc_adb_devices_destroy().
+ */
+bool
+sc_adb_list_devices(struct sc_intr *intr, unsigned flags,
+                    struct sc_vec_adb_devices *out_vec);
+
+/**
  * Execute `adb devices` and parse the result to select a device
  *
  * Return true if a single matching device is found, and write it to out_device.

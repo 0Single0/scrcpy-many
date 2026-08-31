@@ -9,6 +9,7 @@ src = [
     'src/cli.c',
     'src/clock.c',
     'src/compat.c',
+    'src/device_picker.c',
     'src/control_msg.c',
     'src/controller.c',
     'src/decoder.c',
@@ -141,6 +142,8 @@ endif
 if host_machine.system() == 'windows'
     dependencies += cc.find_library('mingw32')
     dependencies += cc.find_library('ws2_32')
+    dependencies += cc.find_library('user32')
+    dependencies += cc.find_library('comctl32')
 endif
 
 check_functions = [
@@ -190,11 +193,18 @@ configure_file(configuration: conf, output: 'config.h')
 
 src_dir = include_directories('src')
 
-executable('scrcpy', src,
+client_name = host_machine.system() == 'windows' ? 'scrcpy-core' : 'scrcpy'
+executable(client_name, src,
            dependencies: dependencies,
            include_directories: src_dir,
            install: true,
            c_args: [])
+
+if host_machine.system() == 'windows'
+    executable('scrcpy', 'src/launcher.c',
+               install: true,
+               link_args: ['-static', '-mwindows'])
+endif
 
 # <https://mesonbuild.com/Builtin-options.html#directories>
 datadir = get_option('datadir') # by default 'share'
@@ -254,6 +264,13 @@ if get_option('buildtype') == 'debug'
           'src/util/command.c',
           'src/util/str.c',
           'src/util/strbuf.c',
+        ]],
+        ['test_device_picker', [
+            'tests/test_device_picker.c',
+            'src/device_picker.c',
+            'src/adb/adb_device.c',
+            'src/util/str.c',
+            'src/util/strbuf.c',
         ]],
         ['test_control_msg_serialize', [
             'tests/test_control_msg_serialize.c',

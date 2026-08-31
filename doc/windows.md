@@ -17,6 +17,21 @@ Download the [latest release]:
 
 and extract it.
 
+The custom Windows build in this repository can also be packaged with the
+directory layout below (the `tools/package_windows.ps1` script does this):
+
+```text
+scrcpy-release/
+  scrcpy.exe                 # launcher to run
+  bin/scrcpy-core.exe        # client executable
+  bin/scrcpy-server
+  lib/*.dll                  # runtime libraries
+  platform-tools/adb.exe
+```
+
+The launcher adds `lib` and `platform-tools` to the child process search path,
+so the DLLs and ADB files do not need to remain in the top-level directory.
+
 
 ### From a package manager
 
@@ -53,6 +68,17 @@ _Make sure that your device meets the [prerequisites](/README.md#prerequisites).
 
 Scrcpy is a command line application: it is mainly intended to be executed from
 a terminal with command line arguments.
+
+The built `scrcpy.exe` also provides a Windows device picker. If multiple ADB
+devices are ready and no selector is provided, double-clicking `scrcpy.exe` (or
+running it without arguments) opens a native window listing the serial, model,
+transport, and state of each device. Select one or more ready devices and
+choose `Start selected`; each selection starts an independent scrcpy window.
+Cancel closes the picker without starting a device session.
+
+The picker is bypassed when using an explicit selector (`--serial`,
+`--select-usb`, `--select-tcpip`, or `--tcpip=<address>`). To force the normal
+command-line flow in scripts, use `--no-device-picker`.
 
 To open a terminal at the expected location, double-click on
 `open_a_terminal_here.bat` in your scrcpy directory, then type your command. For
