@@ -73,5 +73,27 @@ The JSON shape is:
 ```
 
 Use `--dry-run` to print the planned ADB actions without touching the device.
-Each real run writes a log and failure artifacts to its run directory. The
-Windows Task Scheduler integration is added by the next implementation task.
+Each real run writes `run.log` and, on failure, `failure.png` to
+`logs/automation/<plan-name>/<timestamp>/`.
+
+Install the plan as a daily Windows Task Scheduler job at its configured time:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/install_scrcpy_automation.ps1 `
+    -Plan tools/examples/evening-check-in.json
+```
+
+The wrapper resolves the Python interpreter and runner, then calls
+`schtasks.exe /Create /F`. The task runs as the current user and therefore
+requires that user to be logged in, the PC to be awake, and the phone to remain
+ADB-authorized. Inspect or remove the task with:
+
+```powershell
+python tools/scrcpy_automation.py remove "scrcpy-many:evening-check-in"
+```
+
+Use `schedule` directly when a specific interpreter or runner is needed:
+
+```powershell
+python tools/scrcpy_automation.py schedule tools/examples/evening-check-in.json
+```

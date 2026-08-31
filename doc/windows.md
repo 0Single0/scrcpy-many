@@ -32,6 +32,32 @@ scrcpy-release/
 The launcher adds `lib` and `platform-tools` to the child process search path,
 so the DLLs and ADB files do not need to remain in the top-level directory.
 
+## Scheduled device automation
+
+The repository includes a Windows-side Python runner for repeatable Android
+flows such as an evening check-in. It always targets the explicit `serial` in
+the JSON plan; connecting another phone does not change the target.
+
+Preview and validate the supplied example before touching a device:
+
+```powershell
+python tools/scrcpy_automation.py validate tools/examples/evening-check-in.json
+python tools/scrcpy_automation.py run tools/examples/evening-check-in.json --dry-run
+```
+
+Create the daily 21:00 task:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/install_scrcpy_automation.ps1 `
+    -Plan tools/examples/evening-check-in.json
+```
+
+The phone must already be authorized (`adb devices` shows `device`). The
+runner can wake the display and dismiss a non-secure keyguard, but it does not
+store or bypass PIN, pattern, fingerprint, or face unlock. The task runs under
+the logged-in Windows user. Run logs and failure screenshots are written under
+`logs/automation/<plan-name>/<timestamp>/`.
+
 
 ### From a package manager
 

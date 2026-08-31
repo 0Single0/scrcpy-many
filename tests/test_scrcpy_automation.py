@@ -13,6 +13,9 @@ from tools.scrcpy_automation import (
     RunResult,
     load_plan,
     parse_uiautomator_xml,
+    build_schtasks_create_command,
+    build_schtasks_delete_command,
+    main,
     run_plan,
     validate_plan,
     wait_for_device,
@@ -210,6 +213,33 @@ class ActionExecutionTests(unittest.TestCase):
         )
         self.assertEqual(nodes[0].text, "打卡")
         self.assertEqual(nodes[0].bounds, (400, 1400, 680, 1520))
+
+
+class CliTests(unittest.TestCase):
+    def test_scheduler_command_contains_daily_time_and_absolute_plan(self):
+        plan_path = pathlib.Path("tools/examples/evening-check-in.json")
+        command = build_schtasks_create_command(
+            plan_path, pathlib.Path("C:/Python/python.exe"), pathlib.Path("tools/scrcpy_automation.py")
+        )
+        self.assertIn("/SC", command)
+        self.assertEqual(command[command.index("/SC") + 1], "DAILY")
+        self.assertEqual(command[command.index("/ST") + 1], "21:00")
+        self.assertIn(str(plan_path.resolve()), command[-1])
+
+    def test_remove_command_uses_delete_and_force(self):
+        self.assertEqual(
+            build_schtasks_delete_command("scrcpy-many:evening-check-in"),
+            ["schtasks.exe", "/Delete", "/TN", "scrcpy-many:evening-check-in", "/F"],
+        )
+
+    def test_validate_cli_returns_zero_for_example(self):
+        self.assertEqual(main(["validate", "tools/examples/evening-check-in.json"]), 0)
+
+    def test_run_dry_run_returns_zero_without_adb(self):
+        with mock.patch("tools.scrcpy_automation.AdbTransport") as transport:
+            result = main(["run", "tools/examples/evening-check-in.json", "--dry-run"])
+        self.assertEqual(result, 0)
+        transport.assert_called_once()
 
     def test_validate_plan_rejects_missing_serial(self):
         with self.assertRaises(PlanValidationError):

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import dataclasses
+import argparse
 import json
 import pathlib
 import re
 import subprocess
+import sys
 import time
+from datetime import datetime
 from typing import Any
 import xml.etree.ElementTree as ET
 
@@ -470,3 +473,107 @@ def run_plan(
                 except Exception:
                     pass
             return RunResult(False, completed, message)
+
+
+def _task_name(plan: AutomationPlan) -> str:
+    return f"scrcpy-many:{plan.name}"
+
+
+def build_schtasks_create_command(
+    plan_path: pathlib.Path,
+    python_path: pathlib.Path,
+    runner_path: pathlib.Path,
+) -> list[str]:
+    """Build a non-shell schtasks command for one daily automation plan."""
+    plan = load_plan(plan_path)
+    plan_absolute = plan_path.resolve()
+    python_absolute = python_path.resolve()
+    runner_absolute = runner_path.resolve()
+    invocation = (
+        f'"{python_absolute}" "{runner_absolute}" run "{plan_absolute}"'
+    )
+    return [
+        "schtasks.exe", "/Create", "/F", "/TN", _task_name(plan),
+        "/SC", "DAILY", "/ST", plan.schedule["time"], "/TR", invocation,
+    ]
+
+
+def build_schtasks_delete_command(task_name: str) -> list[str]:
+    if not isinstance(task_name, str) or not task_name.strip():
+        raise ValueError("task name must be a non-empty string")
+    return ["schtasks.exe", "/Delete", "/TN", task_name, "/F"]
+
+
+def _run_cli_plan(path: pathlib.Path, dry_run: bool, adb_path: str) -> int:
+    plan = load_plan(path)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    run_dir = pathlib.Path.cwd() / "logs" / "automation" / plan.name / timestamp
+    result = run_plan(plan, AdbTransport(adb_path), run_dir, dry_run=dry_run)
+    print(f"{('SUCCESS' if result.success else 'FAILURE')} {run_dir}")
+    if result.error:
+        print(result.error)
+    return 0 if result.success else 1
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    validate = subparsers.add_parser("validate", help="validate a JSON plan")
+    validate.add_argument("plan", type=pathlib.Path)
+
+    run = subparsers.add_parser("run", help="run a plan against its explicit serial")
+    run.add_argument("plan", type=pathlib.Path)
+    run.add_argument("--dry-run", action="store_true")
+    run.add_argument("--adb", default="adb", help="path to adb executable")
+
+    schedule = subparsers.add_parser("schedule", help="create a daily Windows task")
+    schedule.add_argument("plan", type=pathlib.Path)
+    schedule.add_argument("--python", dest="python_path", type=pathlib.Path,
+                          default=pathlib.Path(sys.executable))
+    schedule.add_argument("--runner", dest="runner_path", type=pathlib.Path,
+                          default=pathlib.Path(__file__))
+
+    remove = subparsers.add_parser("remove", help="remove a scheduled task")
+    remove.add_argument("name")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "validate":
+            plan = load_plan(args.plan)
+            print(f"valid: {plan.name} ({len(plan.steps)} steps, serial {plan.serial})")
+            return 0
+        if args.command == "run":
+            return _run_cli_plan(args.plan, args.dry_run, args.adb)
+        if args.command == "schedule":
+            command = build_schtasks_create_command(
+                args.plan, args.python_path, args.runner_path
+            )
+            completed = subprocess.run(command, text=True, capture_output=True, check=False)
+            if completed.returncode != 0:
+                print(completed.stderr.strip() or "schtasks failed")
+                return completed.returncode or 1
+            plan = load_plan(args.plan)
+            print(f"scheduled: {_task_name(plan)}")
+            return 0
+        if args.command == "remove":
+            command = build_schtasks_delete_command(args.name)
+            completed = subprocess.run(command, text=True, capture_output=True, check=False)
+            if completed.returncode != 0:
+                print(completed.stderr.strip() or "schtasks failed")
+                return completed.returncode or 1
+            print(f"removed: {args.name}")
+            return 0
+    except (PlanValidationError, OSError, ValueError) as exc:
+        print(f"error: {exc}")
+        return 2
+    parser.error("unknown command")
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
