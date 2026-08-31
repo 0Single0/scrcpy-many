@@ -1,0 +1,15 @@
+{
+  "name": "evening-check-in",
+  "serial": "0123456789abcdef",
+  "schedule": { "time": "21:00", "days": ["daily"] },
+  "steps": [
+    { "action": "wake" },
+    { "action": "dismiss_keyguard" },
+    { "action": "wait", "ms": 1000 },
+    { "action": "launch", "package": "com.example.checkin" },
+    { "action": "wait", "ms": 2500 },
+    { "action": "tap_text", "text": "打卡" },
+    { "action": "assert_text", "text": "打卡成功" },
+    { "action": "screenshot", "name": "success" }
+  ]
+}
