@@ -25,6 +25,7 @@ enum {
     OPT_ALWAYS_ON_TOP,
     OPT_CROP,
     OPT_RECORD_FORMAT,
+    OPT_RECORD_ACTIONS,
     OPT_PREFER_TEXT,
     OPT_WINDOW_X,
     OPT_WINDOW_Y,
@@ -793,6 +794,12 @@ static const struct sc_option options[] = {
         .text = "Record screen to file.\n"
                 "The format is determined by the --record-format option if "
                 "set, or by the file extension.",
+    },
+    {
+        .longopt_id = OPT_RECORD_ACTIONS,
+        .longopt = "record-actions",
+        .argdesc = "file.json",
+        .text = "Record touch and key actions to a JSON plan.",
     },
     {
         .longopt_id = OPT_RAW_KEY_EVENTS,
@@ -2951,6 +2958,9 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
                 break;
             case OPT_NO_TERMINAL_TITLE:
                 opts->update_terminal_title = false;
+                break;
+            case OPT_RECORD_ACTIONS:
+                opts->record_actions = optarg;
                 break;
             case OPT_NO_DEVICE_PICKER:
                 opts->no_device_picker = true;

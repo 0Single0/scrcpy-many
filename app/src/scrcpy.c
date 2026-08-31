@@ -768,6 +768,8 @@ aoa_complete:
             .legacy_paste = options->legacy_paste,
             .clipboard_autosync = options->clipboard_autosync,
             .shortcut_mods = options->shortcut_mods,
+            .record_actions = options->record_actions,
+            .serial = options->serial,
             .window_title = window_title,
             .always_on_top = options->always_on_top,
             .window_x = options->window_x,

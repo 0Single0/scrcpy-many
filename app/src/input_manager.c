@@ -7,6 +7,7 @@
 
 #include "android/input.h"
 #include "android/keycodes.h"
+#include "automation_recorder.h"
 #include "events.h"
 #include "input_events.h"
 #include "screen.h"
@@ -49,6 +50,17 @@ sc_input_manager_init(struct sc_input_manager *im,
     im->next_sequence = 1; // 0 is reserved for SC_SEQUENCE_INVALID
 
     im->disconnected = false;
+    im->recorder_started = false;
+    im->recorder_last_tick = SDL_GetTicks();
+    if (params->record_actions) {
+        struct sc_size size = sc_sdl_get_window_size(im->screen->window);
+        im->recorder_started = sc_automation_recorder_start(
+            params->record_actions, params->serial ? params->serial : "unknown",
+            size.width, size.height);
+        if (!im->recorder_started) {
+            LOGE("Could not start action recorder: %s", params->record_actions);
+        }
+    }
 }
 
 static void
@@ -429,6 +441,15 @@ sc_input_manager_process_key(struct sc_input_manager *im,
     bool shift = event->mod & SDL_KMOD_SHIFT;
     bool repeat = event->repeat;
 
+    if (im->recorder_started && !repeat) {
+        uint32_t now = SDL_GetTicks();
+        uint32_t elapsed = now - im->recorder_last_tick;
+        im->recorder_last_tick = now;
+        sc_automation_recorder_record_key(
+            (uint32_t) event->scancode,
+            down ? 1 : 0, elapsed);
+    }
+
     // Either the modifier includes a shortcut modifier, or the key
     // press/release is a modifier key.
     // The second condition is necessary to ignore the release of the modifier
@@ -757,6 +778,16 @@ sc_input_manager_process_mouse_motion(struct sc_input_manager *im,
         return;
     }
 
+    if (im->recorder_started && (im->mouse_buttons_state & SC_MOUSE_BUTTON_LEFT)) {
+        uint32_t now = SDL_GetTicks();
+        uint32_t elapsed = now - im->recorder_last_tick;
+        im->recorder_last_tick = now;
+        sc_automation_recorder_record_touch(
+            SC_AUTOMATION_TOUCH_MOTION, event->x, event->y,
+            (uint16_t) im->screen->content_size.width,
+            (uint16_t) im->screen->content_size.height, elapsed);
+    }
+
     struct sc_mouse_motion_event evt = {
         .position = sc_input_manager_get_position(im, event->x, event->y),
         .pointer_id = im->vfinger_down ? SC_POINTER_ID_GENERIC_FINGER
@@ -801,6 +832,19 @@ sc_input_manager_process_touch(struct sc_input_manager *im,
     // SDL touch event coordinates are normalized in the range [0; 1]
     int32_t x = event->x * (int32_t) window_size.width;
     int32_t y = event->y * (int32_t) window_size.height;
+
+    if (im->recorder_started) {
+        uint32_t now = SDL_GetTicks();
+        uint32_t elapsed = now - im->recorder_last_tick;
+        im->recorder_last_tick = now;
+        uint8_t action = event->type == SDL_EVENT_FINGER_DOWN
+                        ? SC_AUTOMATION_TOUCH_DOWN
+                        : event->type == SDL_EVENT_FINGER_UP
+                          ? SC_AUTOMATION_TOUCH_UP
+                          : SC_AUTOMATION_TOUCH_MOTION;
+        sc_automation_recorder_record_touch(
+            action, x, y, window_size.width, window_size.height, elapsed);
+    }
 
     struct sc_touch_event evt = {
         .position = {
@@ -853,6 +897,17 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
     bool control = im->controller;
     bool paused = im->screen->paused;
     bool down = event->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+
+    if (im->recorder_started && event->button == SDL_BUTTON_LEFT) {
+        uint32_t now = SDL_GetTicks();
+        uint32_t elapsed = now - im->recorder_last_tick;
+        im->recorder_last_tick = now;
+        sc_automation_recorder_record_touch(
+            down ? SC_AUTOMATION_TOUCH_DOWN : SC_AUTOMATION_TOUCH_UP,
+            event->x, event->y,
+            (uint16_t) im->screen->content_size.width,
+            (uint16_t) im->screen->content_size.height, elapsed);
+    }
 
     enum sc_mouse_button button = sc_mouse_button_from_sdl(event->button);
     if (button == SC_MOUSE_BUTTON_UNKNOWN) {
@@ -1158,6 +1213,10 @@ sc_input_manager_process_file(struct sc_input_manager *im,
 static void
 sc_input_manager_on_device_disconnected(struct sc_input_manager *im) {
     im->disconnected = true;
+    if (im->recorder_started) {
+        sc_automation_recorder_stop();
+        im->recorder_started = false;
+    }
 
     struct sc_fps_counter *fps_counter = &im->screen->fps_counter;
     if (sc_fps_counter_is_started(fps_counter)) {

@@ -72,6 +72,19 @@ The JSON shape is:
 }
 ```
 
+To capture a reusable action plan while operating a scrcpy window, start the
+client with an output path:
+
+```powershell
+scrcpy.exe --serial 0123456789abcdef --record-actions evening-actions.json
+```
+
+The recorder is opt-in. It captures touch down/move/up sequences as `tap` or
+`swipe`, keyboard events as `keyevent`, and inserts millisecond `wait` steps
+between events. The file is written through a temporary path and renamed only
+after a complete JSON document is closed. Clipboard, file-drop, gamepad, and
+secure-unlock data are not recorded.
+
 Use `--dry-run` to print the planned ADB actions without touching the device.
 Each real run writes `run.log` and, on failure, `failure.png` to
 `logs/automation/<plan-name>/<timestamp>/`.

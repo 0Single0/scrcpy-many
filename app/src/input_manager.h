@@ -48,6 +48,9 @@ struct sc_input_manager {
     uint64_t next_sequence; // used for request acknowledgements
 
     bool disconnected;
+
+    bool recorder_started;
+    uint32_t recorder_last_tick;
 };
 
 struct sc_input_manager_params {
@@ -62,6 +65,8 @@ struct sc_input_manager_params {
     struct sc_mouse_bindings mouse_bindings;
     bool legacy_paste;
     bool clipboard_autosync;
+    const char *record_actions;
+    const char *serial;
     uint8_t shortcut_mods; // OR of enum sc_shortcut_mod values
 };
 

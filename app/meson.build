@@ -5,6 +5,7 @@ src = [
     'src/adb/adb_parser.c',
     'src/adb/adb_tunnel.c',
     'src/audio_player.c',
+    'src/automation_recorder.c',
     'src/audio_regulator.c',
     'src/cli.c',
     'src/clock.c',
@@ -301,6 +302,10 @@ if get_option('buildtype') == 'debug'
         ]],
         ['test_vector', [
             'tests/test_vector.c',
+        ]],
+        ['test_automation_recorder', [
+            'tests/test_automation_recorder.c',
+            'src/automation_recorder.c',
         ]],
     ]
 

@@ -1,4 +1,5 @@
 #include "screen.h"
+#include "automation_recorder.h"
 
 #include <assert.h>
 #include <string.h>
@@ -665,6 +666,8 @@ sc_screen_init(struct sc_screen *screen,
         .mouse_bindings = params->mouse_bindings,
         .legacy_paste = params->legacy_paste,
         .clipboard_autosync = params->clipboard_autosync,
+        .record_actions = params->record_actions,
+        .serial = params->serial,
         .shortcut_mods = params->shortcut_mods,
     };
 
@@ -804,6 +807,10 @@ sc_screen_destroy(struct sc_screen *screen) {
 #ifndef NDEBUG
     assert(!screen->open);
 #endif
+    if (screen->im.recorder_started) {
+        sc_automation_recorder_stop();
+        screen->im.recorder_started = false;
+    }
     if (screen->disconnect_started) {
         sc_disconnect_destroy(&screen->disconnect);
     }
