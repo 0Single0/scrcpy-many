@@ -6,6 +6,8 @@ import dataclasses
 import json
 import pathlib
 import re
+import subprocess
+import time
 from typing import Any
 
 
@@ -43,6 +45,79 @@ class AutomationPlan:
     serial: str
     schedule: dict[str, Any]
     steps: list[Step]
+
+
+class AdbCommandError(RuntimeError):
+    """Raised when ADB cannot execute a command successfully."""
+
+    def __init__(
+        self,
+        serial: str,
+        args: list[str],
+        stderr: str,
+        returncode: int | None = None,
+    ) -> None:
+        details = stderr.strip() or "ADB command failed"
+        command = " ".join(args)
+        suffix = f" (exit {returncode})" if returncode is not None else ""
+        super().__init__(f"ADB error for {serial}: {command}: {details}{suffix}")
+        self.serial = serial
+        self.command_args = args
+        self.stderr = stderr
+        self.returncode = returncode
+
+
+class AdbTransport:
+    """Run ADB commands for one explicit serial without a shell."""
+
+    def __init__(self, adb_path: str | pathlib.Path = "adb", default_timeout: float = 30.0) -> None:
+        self.adb_path = str(adb_path)
+        self.default_timeout = default_timeout
+
+    def run(
+        self,
+        serial: str,
+        args: list[str],
+        timeout: float | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        command = [self.adb_path, "-s", serial, *[str(arg) for arg in args]]
+        try:
+            result = subprocess.run(
+                command,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=self.default_timeout if timeout is None else timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise AdbCommandError(serial, command[3:], f"command timed out: {exc}") from exc
+        if result.returncode != 0:
+            raise AdbCommandError(serial, command[3:], result.stderr, result.returncode)
+        return result
+
+
+class FakeAdbTransport:
+    """Deterministic transport useful for unit and fixture tests."""
+
+    def __init__(self, responses: list[Any] | None = None) -> None:
+        self.responses = list(responses or [])
+        self.calls: list[tuple[str, list[str], float | None]] = []
+
+    def run(
+        self,
+        serial: str,
+        args: list[str],
+        timeout: float | None = None,
+    ) -> Any:
+        self.calls.append((serial, list(args), timeout))
+        if not self.responses:
+            return subprocess.CompletedProcess([], 0, "", "")
+        response = self.responses.pop(0)
+        if isinstance(response, BaseException):
+            raise response
+        if callable(response):
+            return response(serial, args, timeout)
+        return response
 
 
 def _require(condition: bool, message: str) -> None:
@@ -138,3 +213,43 @@ def load_plan(path: pathlib.Path) -> AutomationPlan:
     except (OSError, json.JSONDecodeError) as exc:
         raise PlanValidationError(f"Could not read plan {path}: {exc}") from exc
     return validate_plan(document)
+
+
+def wait_for_device(
+    transport: AdbTransport,
+    serial: str,
+    timeout: float,
+    poll_interval: float = 1.0,
+) -> None:
+    """Wait until ADB reports the explicit serial as ready."""
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = max(0.1, deadline - time.monotonic())
+        try:
+            result = transport.run(serial, ["get-state"], timeout=min(remaining, 10.0))
+        except AdbCommandError as exc:
+            details = str(exc).lower()
+            if "unauthorized" in details:
+                raise AdbCommandError(
+                    serial,
+                    ["get-state"],
+                    "Device is unauthorized; accept the USB debugging prompt",
+                    exc.returncode,
+                ) from exc
+            if time.monotonic() >= deadline:
+                raise
+        else:
+            state = result.stdout.strip().lower()
+            if state == "device":
+                return
+            if state == "unauthorized":
+                raise AdbCommandError(
+                    serial,
+                    ["get-state"],
+                    "Device is unauthorized; accept the USB debugging prompt",
+                    result.returncode,
+                )
+            if time.monotonic() >= deadline:
+                raise AdbCommandError(serial, ["get-state"], f"Device state: {state or 'missing'}")
+
+        time.sleep(min(poll_interval, max(0.0, deadline - time.monotonic())))
