@@ -1,0 +1,4 @@
+<hierarchy rotation="0">
+  <node text="打卡" resource-id="com.example.checkin:id/check_in"
+        class="android.widget.Button" bounds="[400,1400][680,1520]" />
+</hierarchy>

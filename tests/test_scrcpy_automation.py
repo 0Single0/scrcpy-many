@@ -7,8 +7,13 @@ from unittest import mock
 from tools.scrcpy_automation import (
     AdbCommandError,
     AdbTransport,
+    AutomationPlan,
+    FakeAdbTransport,
     PlanValidationError,
+    RunResult,
     load_plan,
+    parse_uiautomator_xml,
+    run_plan,
     validate_plan,
     wait_for_device,
 )
@@ -78,6 +83,133 @@ class TransportTests(unittest.TestCase):
 
         with self.assertRaisesRegex(AdbCommandError, "authorize"):
             wait_for_device(FakeTransport(), "ABC123", timeout=5, poll_interval=0)
+
+
+class ActionExecutionTests(unittest.TestCase):
+    def make_plan(self, steps):
+        return validate_plan({
+            "name": "test",
+            "serial": "ABC123",
+            "steps": steps,
+        })
+
+    def test_executes_basic_actions_in_order(self):
+        plan = self.make_plan([
+            {"action": "wake"},
+            {"action": "dismiss_keyguard"},
+            {"action": "launch", "package": "com.example.app"},
+            {"action": "tap", "x": 100, "y": 200},
+            {"action": "swipe", "x1": 100, "y1": 200, "x2": 100, "y2": 500, "duration_ms": 300},
+            {"action": "text", "value": "hello"},
+            {"action": "keyevent", "code": "BACK"},
+        ])
+        transport = FakeAdbTransport()
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_plan(plan, transport, pathlib.Path(directory))
+
+        self.assertTrue(result.success)
+        self.assertEqual(
+            [call[1] for call in transport.calls],
+            [
+                ["get-state"],
+                ["shell", "input", "keyevent", "KEYCODE_WAKEUP"],
+                ["shell", "wm", "dismiss-keyguard"],
+                ["shell", "monkey", "-p", "com.example.app", "1"],
+                ["shell", "input", "tap", "100", "200"],
+                ["shell", "input", "swipe", "100", "200", "100", "500", "300"],
+                ["shell", "input", "text", "hello"],
+                ["shell", "input", "keyevent", "BACK"],
+            ],
+        )
+
+    def test_tap_text_uses_the_center_of_the_matching_node(self):
+        xml = (pathlib.Path(__file__).parent / "fixtures" / "uiautomator_checkin.xml").read_text(encoding="utf-8")
+        transport = FakeAdbTransport([
+            None,
+            None,
+            None,
+            None,
+        ])
+        transport.responses = [
+            mock.Mock(returncode=0, stdout="device\n", stderr=""),
+            mock.Mock(returncode=0, stdout="UI hierchary dumped to: /sdcard/window.xml\n", stderr=""),
+            mock.Mock(returncode=0, stdout=xml, stderr=""),
+            mock.Mock(returncode=0, stdout="", stderr=""),
+        ]
+        plan = self.make_plan([{"action": "tap_text", "text": "打卡"}])
+
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_plan(plan, transport, pathlib.Path(directory))
+
+        self.assertTrue(result.success)
+        self.assertEqual(transport.calls[-1][1], ["shell", "input", "tap", "540", "1460"])
+
+    def test_assert_text_failure_stops_later_actions(self):
+        transport = FakeAdbTransport([
+            mock.Mock(returncode=0, stdout="device\n", stderr=""),
+            mock.Mock(returncode=0, stdout="dumped\n", stderr=""),
+            mock.Mock(returncode=0, stdout="<hierarchy />", stderr=""),
+        ])
+        plan = self.make_plan([
+            {"action": "assert_text", "text": "打卡成功"},
+            {"action": "tap", "x": 1, "y": 1},
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_plan(plan, transport, pathlib.Path(directory))
+            log_exists = pathlib.Path(directory, "run.log").exists()
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.completed_steps, 0)
+        self.assertNotIn(["shell", "input", "tap", "1", "1"], [call[1] for call in transport.calls])
+        self.assertTrue(log_exists)
+
+    def test_adb_action_retries_once_after_transient_failure(self):
+        transient = AdbCommandError("ABC123", ["shell", "input", "tap", "1", "2"], "offline", 1)
+        transport = FakeAdbTransport([
+            mock.Mock(returncode=0, stdout="device\n", stderr=""),
+            transient,
+            mock.Mock(returncode=0, stdout="", stderr=""),
+        ])
+        plan = self.make_plan([{"action": "tap", "x": 1, "y": 2}])
+        with tempfile.TemporaryDirectory() as directory, mock.patch("tools.scrcpy_automation.time.sleep") as sleep:
+            result = run_plan(plan, transport, pathlib.Path(directory))
+
+        self.assertTrue(result.success)
+        self.assertEqual([call[1] for call in transport.calls].count(["shell", "input", "tap", "1", "2"]), 2)
+        sleep.assert_called_once_with(1.0)
+
+    def test_screenshot_writes_binary_file(self):
+        transport = FakeAdbTransport([
+            mock.Mock(returncode=0, stdout="device\n", stderr=""),
+            mock.Mock(returncode=0, stdout=b"PNG\x00bytes", stderr=b""),
+        ])
+        plan = self.make_plan([{"action": "screenshot", "name": "state"}])
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_plan(plan, transport, pathlib.Path(directory))
+            screenshot = pathlib.Path(directory, "state.png")
+            screenshot_bytes = screenshot.read_bytes()
+
+        self.assertTrue(result.success)
+        self.assertEqual(screenshot_bytes, b"PNG\x00bytes")
+
+    def test_dry_run_does_not_call_adb(self):
+        transport = FakeAdbTransport()
+        plan = self.make_plan([{"action": "wake"}, {"action": "tap", "x": 1, "y": 2}])
+
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_plan(plan, transport, pathlib.Path(directory), dry_run=True)
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.completed_steps, 2)
+        self.assertEqual(transport.calls, [])
+
+    def test_parse_uiautomator_xml_extracts_bounds(self):
+        nodes = parse_uiautomator_xml(
+            '<hierarchy><node text="打卡" bounds="[400,1400][680,1520]" /></hierarchy>'
+        )
+        self.assertEqual(nodes[0].text, "打卡")
+        self.assertEqual(nodes[0].bounds, (400, 1400, 680, 1520))
 
     def test_validate_plan_rejects_missing_serial(self):
         with self.assertRaises(PlanValidationError):
