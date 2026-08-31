@@ -1,250 +1,140 @@
-> [!WARNING]
-> **This GitHub repo (<https://github.com/Genymobile/scrcpy>) is the only official
-source for the project. Do not download releases from random websites, even if
-their name contains `scrcpy`.**
+# scrcpy-many
 
-# scrcpy (v4.1)
+这是基于 scrcpy 4.1 的 Windows 二次开发版本，目标是让多台 Android 手机
+可以更方便地被发现、选择和同时操控。
 
-<img src="app/data/scrcpy.svg" width="128" height="128" alt="scrcpy" align="right" />
+本项目不是 scrcpy 官方发行版。使用、反馈和版本信息以本仓库为准；scrcpy
+本体的原始实现和许可证归上游项目所有。
 
-_pronounced "**scr**een **c**o**py**"_
+## 原仓库
 
-This application mirrors Android devices (video and audio) connected via USB or
-[TCP/IP](doc/connection.md#tcpip-wireless) and allows control using the
-computer's keyboard and mouse. It does not require _root_ access or an app
-installed on the device. It works on _Linux_, _Windows_, and _macOS_.
+- 上游项目：[Genymobile/scrcpy](https://github.com/Genymobile/scrcpy)
+- 本项目基于上游 `v4.1` 版本开发
+- 上游许可证：Apache License 2.0
 
-[![Linux](https://img.shields.io/badge/Linux-download-orange?style=for-the-badge&logo=linux)](doc/linux.md)&nbsp;
-[![Windows](https://img.shields.io/badge/Windows-download-blue?style=for-the-badge&logo=windows)](doc/windows.md)&nbsp;
-[![macOS](https://img.shields.io/badge/macOS-download-brightgreen?style=for-the-badge&logo=apple)](doc/macos.md)&nbsp;
+## 本项目的二开内容
 
-![screenshot](assets/screenshot-debian-600.jpg)
+### Windows 多设备选择器
 
-It focuses on:
+启动 Windows 版 `scrcpy.exe` 时，程序会先读取 ADB 设备列表：
 
- - **lightness**: native, displays only the device screen
- - **performance**: 30~120fps, depending on the device
- - **quality**: 1920×1080 or above
- - **low latency**: [35~70ms][lowlatency]
- - **low startup time**: ~1 second to display the first image
- - **non-intrusiveness**: nothing is left installed on the Android device
- - **user benefits**: no account, no ads, no internet required
- - **freedom**: free and open source software
+- 只有一台可用设备时，直接启动该设备
+- 有多台可用设备时，弹出图形化选择窗口
+- 支持单选或多选设备
+- 多选时会为每台手机分别启动一个 scrcpy 窗口
+- 可以看到序列号、型号、连接方式和 ADB 状态
+- `unauthorized`、`offline` 等设备仍会显示，但不能被启动
+- 双击设备行可以直接启动
+- 取消选择时不会进入 scrcpy 连接流程
 
-[lowlatency]: https://github.com/Genymobile/scrcpy/pull/646
+### 选择器 UI 重做
 
-Its features include:
- - [audio forwarding](doc/audio.md) (Android 11+)
- - [recording](doc/recording.md)
- - [virtual display](doc/virtual-display.md)
- - mirroring with [Android device screen off](doc/device.md#turn-screen-off)
- - [copy-paste](doc/control.md#copy-paste) in both directions
- - [configurable quality](doc/video.md)
- - [camera mirroring](doc/camera.md) (Android 12+)
- - [mirroring as a webcam (V4L2)](doc/v4l2.md) (Linux-only)
- - physical [keyboard][hid-keyboard] and [mouse][hid-mouse] simulation (HID)
- - [gamepad](doc/gamepad.md) support
- - [OTG mode](doc/otg.md)
- - and more…
+Windows 选择窗口使用原生 Unicode 控件重新设计：
 
-[hid-keyboard]: doc/keyboard.md#physical-keyboard-simulation
-[hid-mouse]: doc/mouse.md#physical-mouse-simulation
+- 使用表格列对齐设备信息，不再依赖空格拼接文本
+- 增加标题、说明、选择数量和可启动数量提示
+- 支持窗口缩放，列表和按钮会自适应布局
+- 不可用设备使用灰色状态显示
+- 支持中文型号和特殊序列号，避免 ANSI 乱码
 
-## Prerequisites
+### Windows 整理版发布目录
 
-The Android device requires at least API 21 (Android 5.0).
+新增启动器和打包脚本，将运行文件分目录存放，避免所有 DLL 堆在根目录：
 
-[Audio forwarding](doc/audio.md) is supported for API >= 30 (Android 11+).
-
-Make sure you [enabled USB debugging][enable-adb] on your device(s).
-
-[enable-adb]: https://developer.android.com/studio/debug/dev-options#enable
-
-On some devices (especially Xiaomi), you might get the following error:
-
-```
-Injecting input events requires the caller (or the source of the instrumentation, if any) to have the INJECT_EVENTS permission.
+```text
+scrcpy-release/
+├─ scrcpy.exe                 # 用户启动的入口
+├─ bin/
+│  ├─ scrcpy-core.exe         # 实际 scrcpy 客户端
+│  └─ scrcpy-server
+├─ lib/
+│  └─ *.dll                   # SDL、FFmpeg、MinGW、libusb 等运行库
+└─ platform-tools/
+   ├─ adb.exe
+   ├─ AdbWinApi.dll
+   └─ AdbWinUsbApi.dll
 ```
 
-In that case, you need to enable [an additional option][control] `USB debugging
-(Security Settings)` (this is an item different from `USB debugging`) to control
-it using a keyboard and mouse. Rebooting the device is necessary once this
-option is set.
+入口启动器会自动设置 DLL 和 ADB 搜索路径，用户只需要双击根目录的
+`scrcpy.exe`。
 
-[control]: https://github.com/Genymobile/scrcpy/issues/70#issuecomment-373286323
+### 命令行兼容
 
-Note that USB debugging is not required to run scrcpy in [OTG mode](doc/otg.md).
+显式指定设备时会跳过图形选择器：
 
+```powershell
+scrcpy.exe --serial 设备序列号
+scrcpy.exe --select-usb
+scrcpy.exe --select-tcpip
+scrcpy.exe --tcpip=192.168.1.8:5555
+```
 
-## Get the app
+脚本或自动化场景可以使用：
 
- - [Linux](doc/linux.md)
- - [Windows](doc/windows.md) (read [how to run](doc/windows.md#run))
- - [macOS](doc/macos.md)
+```powershell
+scrcpy.exe --no-device-picker
+```
 
-## Multi-device selection on Windows
+Linux 和 macOS 继续使用上游的标准命令行设备选择行为。
 
-The Windows build includes a graphical device picker. When `scrcpy.exe` is
-started without a device selector and more than one ready ADB device is
-connected, it shows the connected serials and lets you start one or more
-devices. Each selected device runs in its own regular scrcpy window.
+## 快速使用
 
-For scripts and automation, pass an explicit selector such as
-`scrcpy --serial 0123456789abcdef`, or disable the picker with
-`scrcpy --no-device-picker`. Linux and macOS keep the standard command-line
-device selection behavior.
+1. 在手机的开发者选项中打开 USB 调试。
+2. 确认电脑已经安装手机对应的 ADB 驱动。
+3. 将手机通过 USB 连接，或者先通过 ADB 配置 TCP/IP 连接。
+4. 双击：
 
+   ```text
+   D:\scrcpy-release-organized\scrcpy.exe
+   ```
 
-## Must-know tips
+5. 连接多台手机时，在选择器中选中需要操控的设备（可使用 Ctrl/Shift 多选），
+   然后点击 `Start selected`。
 
- - [Reducing resolution](doc/video.md#size) may greatly improve performance
-   (`scrcpy -m1024`)
- - [_Right-click_](doc/mouse.md#mouse-bindings) triggers `BACK`
- - [_Middle-click_](doc/mouse.md#mouse-bindings) triggers `HOME`
- - <kbd>Alt</kbd>+<kbd>f</kbd> toggles [fullscreen](doc/window.md#fullscreen)
- - There are many other [shortcuts](doc/shortcuts.md)
+也可以在终端中运行：
 
+```powershell
+cd D:\scrcpy-release-organized
+.\scrcpy.exe
+```
 
-## Usage examples
+## 从源码构建 Windows 版本
 
-There are a lot of options, [documented](#user-documentation) in separate pages.
-Here are just some common examples.
+项目使用 Meson 和 Ninja。构建完成后，可以使用打包脚本生成整理版目录：
 
- - Capture the screen in H.265 (better quality), limit the size to 1920, limit
-   the frame rate to 60fps, disable audio, and control the device by simulating
-   a physical keyboard:
+```powershell
+meson setup D:\scrcpy-build-release `
+    -Dbuildtype=release `
+    -Dportable=true `
+    -Dprebuilt_server=D:\scrcpy-build-tools\scrcpy-server-v4.1 `
+    -Dv4l2=false `
+    -Dusb=true
 
-    ```bash
-    scrcpy --video-codec=h265 --max-size=1920 --max-fps=60 --no-audio --keyboard=uhid
-    scrcpy --video-codec=h265 -m1920 --max-fps=60 --no-audio -K  # short version
-    ```
+ninja -C D:\scrcpy-build-release
 
- - Start VLC in a new virtual display (separate from the device display):
+.\tools\package_windows.ps1 `
+    -BuildDir D:\scrcpy-build-release `
+    -RuntimeDir D:\scrcpy-release `
+    -OutputDir D:\scrcpy-release-organized
+```
 
-    ```bash
-    scrcpy --new-display=1920x1080 --start-app=org.videolan.vlc
-    ```
+打包脚本会检查根目录没有 DLL，并确认 `bin`、`lib` 和
+`platform-tools` 中的文件齐全。对应检查脚本为
+`tools/test_windows_package.ps1`。
 
- - Start VLC in a new _flex_ display using H.265 with a bitrate of 16 Mbps,
-   while keeping the display active so it does not turn off:
+## 相关文档
 
-    ```bash
-    scrcpy --new-display -x --keep-active --start-app=org.videolan.vlc --video-codec=h265 -b16M
-    ```
+- [Windows 使用说明](doc/windows.md)
+- [Windows 打包脚本说明](tools/README.md)
+- [上游 scrcpy 文档](https://github.com/Genymobile/scrcpy/tree/master/doc)
 
- - Record the device camera in H.265 at 1920x1080 (and microphone) to an MP4
-   file:
+## 免责声明
 
-    ```bash
-    scrcpy --video-source=camera --video-codec=h265 --camera-size=1920x1080 --record=file.mp4
-    ```
+本项目只是对上游 scrcpy 的二次开发和重新构建，不代表 Genymobile 官方立场。
+遇到 scrcpy 核心功能问题时，请先对照上游仓库和文档确认问题是否存在于原版。
 
- - Capture the device front camera and expose it as a webcam on the computer (on
-   Linux):
+Copyright (C) 2018 Genymobile
 
-    ```bash
-    scrcpy --video-source=camera --camera-size=1920x1080 --camera-facing=front --v4l2-sink=/dev/video2 --no-playback
-    ```
+Copyright (C) 2018-2026 Romain Vimont
 
- - Control the device without mirroring by simulating a physical keyboard and
-   mouse (USB debugging not required):
-
-    ```bash
-    scrcpy --otg
-    ```
-
- - Control the device using gamepads plugged into the computer:
-
-    ```bash
-    scrcpy --gamepad=uhid
-    scrcpy -G  # short version
-    ```
-
-## User documentation
-
-The application provides a lot of features and configuration options. They are
-documented in the following pages:
-
- - [Connection](doc/connection.md)
- - [Video](doc/video.md)
- - [Audio](doc/audio.md)
- - [Control](doc/control.md)
- - [Keyboard](doc/keyboard.md)
- - [Mouse](doc/mouse.md)
- - [Gamepad](doc/gamepad.md)
- - [Device](doc/device.md)
- - [Window](doc/window.md)
- - [Recording](doc/recording.md)
- - [Virtual display](doc/virtual-display.md)
- - [Tunnels](doc/tunnels.md)
- - [OTG](doc/otg.md)
- - [Camera](doc/camera.md)
- - [Video4Linux](doc/v4l2.md)
- - [Shortcuts](doc/shortcuts.md)
-
-
-## Resources
-
- - [FAQ](FAQ.md)
- - [Translations][wiki] (not necessarily up to date)
- - [Build instructions](doc/build.md)
- - [Developers](doc/develop.md)
- - [Verify release signatures](doc/verify-release.md)
-
-[wiki]: https://github.com/Genymobile/scrcpy/wiki
-
-
-## Articles
-
-- [Introducing scrcpy][article-intro]
-- [Scrcpy now works wirelessly][article-tcpip]
-- [Scrcpy 2.0, with audio][article-scrcpy2]
-
-[article-intro]: https://blog.rom1v.com/2018/03/introducing-scrcpy/
-[article-tcpip]: https://www.genymotion.com/blog/open-source-project-scrcpy-now-works-wirelessly/
-[article-scrcpy2]: https://blog.rom1v.com/2023/03/scrcpy-2-0-with-audio/
-
-## Contact
-
-You can open an [issue] for bug reports, feature requests or general questions.
-
-For bug reports, please read the [FAQ](FAQ.md) first, you might find a solution
-to your problem immediately.
-
-[issue]: https://github.com/Genymobile/scrcpy/issues
-
-You can also use:
-
- - Reddit: [`r/scrcpy`](https://www.reddit.com/r/scrcpy)
- - BlueSky: [`@scrcpy.bsky.social`](https://bsky.app/profile/scrcpy.bsky.social)
- - Twitter: [`@scrcpy_app`](https://twitter.com/scrcpy_app)
-
-
-## Donate
-
-I'm [@rom1v](https://github.com/rom1v), the author and maintainer of _scrcpy_.
-
-If you appreciate this application, you can [support my open source
-work][donate]:
- - [GitHub Sponsors](https://github.com/sponsors/rom1v)
- - [Liberapay](https://liberapay.com/rom1v/)
- - [PayPal](https://paypal.me/rom2v)
-
-[donate]: https://blog.rom1v.com/about/#support-my-open-source-work
-
-## License
-
-    Copyright (C) 2018 Genymobile
-    Copyright (C) 2018-2026 Romain Vimont
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
+二次开发部分遵循原项目 Apache License 2.0。
