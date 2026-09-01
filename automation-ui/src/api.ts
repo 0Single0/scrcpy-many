@@ -67,38 +67,24 @@ declare global {
   }
 }
 
-const unavailable = async (): Promise<never> => {
-  throw new Error("自动化中心桥接尚未就绪");
+const currentBridge = (): PyWebViewApi => {
+  const bridge = window.pywebview?.api;
+  if (!bridge) throw new Error("自动化中心桥接尚未就绪");
+  return bridge;
 };
 
 export const createWebViewApi = (): AutomationApi => {
-  const bridge = window.pywebview?.api;
-  if (!bridge) {
-    return {
-      listDevices: unavailable,
-      listPlans: unavailable,
-      loadPlan: unavailable,
-      savePlan: unavailable,
-      startRecording: unavailable,
-      stopRecording: unavailable,
-      runPlanNow: unavailable,
-      setSchedule: unavailable,
-      removeSchedule: unavailable,
-      listRuns: unavailable,
-      openArtifact: unavailable,
-    };
-  }
   return {
-    listDevices: () => bridge.list_devices(),
-    listPlans: () => bridge.list_plans(),
-    loadPlan: (path) => bridge.load_plan(path),
-    savePlan: (document, path) => bridge.save_plan(document, path),
-    startRecording: (serial) => bridge.start_recording(serial),
-    stopRecording: () => bridge.stop_recording(),
-    runPlanNow: (path, dryRun) => bridge.run_plan_now(path, dryRun),
-    setSchedule: (path) => bridge.set_schedule(path),
-    removeSchedule: (name) => bridge.remove_schedule(name),
-    listRuns: (name) => bridge.list_runs(name),
-    openArtifact: (path) => bridge.open_artifact(path),
+    listDevices: () => currentBridge().list_devices(),
+    listPlans: () => currentBridge().list_plans(),
+    loadPlan: (path) => currentBridge().load_plan(path),
+    savePlan: (document, path) => currentBridge().save_plan(document, path),
+    startRecording: (serial) => currentBridge().start_recording(serial),
+    stopRecording: () => currentBridge().stop_recording(),
+    runPlanNow: (path, dryRun) => currentBridge().run_plan_now(path, dryRun),
+    setSchedule: (path) => currentBridge().set_schedule(path),
+    removeSchedule: (name) => currentBridge().remove_schedule(name),
+    listRuns: (name) => currentBridge().list_runs(name),
+    openArtifact: (path) => currentBridge().open_artifact(path),
   };
 };

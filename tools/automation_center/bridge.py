@@ -22,6 +22,8 @@ from tools.scrcpy_automation import (
 )
 from tools.scrcpy_launcher import parse_adb_devices
 
+_CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 
 class AutomationBridge:
     """Own files and system calls for one portable automation-center install."""
@@ -95,6 +97,7 @@ class AutomationBridge:
                 text=True,
                 capture_output=True,
                 check=False,
+                creationflags=_CREATE_NO_WINDOW,
             )
         except OSError:
             return []
@@ -201,7 +204,11 @@ class AutomationBridge:
             str(output),
         ]
         try:
-            process = subprocess.Popen(command, cwd=self.portable_root)
+            process = subprocess.Popen(
+                command,
+                cwd=self.portable_root,
+                creationflags=_CREATE_NO_WINDOW,
+            )
         except OSError as exc:
             return self._failure("recording_start_failed", str(exc))
 
@@ -303,7 +310,13 @@ class AutomationBridge:
             runner_is_executable=runner_is_executable,
         )
         try:
-            completed = subprocess.run(command, text=True, capture_output=True, check=False)
+            completed = subprocess.run(
+                command,
+                text=True,
+                capture_output=True,
+                check=False,
+                creationflags=_CREATE_NO_WINDOW,
+            )
         except OSError as exc:
             return self._failure("scheduler_error", str(exc))
         if completed.returncode:
@@ -318,7 +331,13 @@ class AutomationBridge:
         task_name = f"scrcpy-many:{filename[:-5]}"
         command = build_schtasks_delete_command(task_name)
         try:
-            completed = subprocess.run(command, text=True, capture_output=True, check=False)
+            completed = subprocess.run(
+                command,
+                text=True,
+                capture_output=True,
+                check=False,
+                creationflags=_CREATE_NO_WINDOW,
+            )
         except OSError as exc:
             return self._failure("scheduler_error", str(exc))
         if completed.returncode:

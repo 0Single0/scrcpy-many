@@ -97,6 +97,10 @@ class AutomationBridgeStorageTests(unittest.TestCase):
 
         devices = self.bridge.list_devices()
 
+        self.assertEqual(
+            run.call_args.kwargs["creationflags"],
+            getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
         self.assertEqual(devices, [
             {"serial": "ABC", "state": "device", "transport": "USB", "model": "Pixel 6", "product": "oriole"},
             {"serial": "DEF", "state": "offline", "transport": "USB", "model": "", "product": ""},
@@ -169,7 +173,10 @@ class AutomationBridgeRecordingTests(unittest.TestCase):
         command = popen.call_args.args[0]
         self.assertEqual(command[:4], [str(self.root.resolve() / "scrcpy.exe"), "--serial", "ABC", "--record-actions"])
         self.assertTrue(command[4].endswith(".json"))
-        self.assertEqual(popen.call_args.kwargs, {"cwd": self.root.resolve()})
+        self.assertEqual(popen.call_args.kwargs, {
+            "cwd": self.root.resolve(),
+            "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        })
 
     def test_start_recording_rejects_a_device_that_is_not_ready(self):
         transport = FakeAdbTransport([subprocess.CompletedProcess([], 0, "offline\n", "")])

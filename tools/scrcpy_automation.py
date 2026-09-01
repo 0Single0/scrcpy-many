@@ -44,6 +44,7 @@ _ACTION_PARAMETER_KEYS = {
     "assert_text": frozenset({"text"}),
     "screenshot": frozenset({"name"}),
 }
+_CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 class PlanValidationError(ValueError):
@@ -124,6 +125,7 @@ class AdbTransport:
                 capture_output=True,
                 check=False,
                 timeout=self.default_timeout if timeout is None else timeout,
+                creationflags=_CREATE_NO_WINDOW,
             )
         except subprocess.TimeoutExpired as exc:
             raise AdbCommandError(serial, command[3:], f"command timed out: {exc}") from exc
@@ -146,6 +148,7 @@ class AdbTransport:
                 capture_output=True,
                 check=False,
                 timeout=self.default_timeout if timeout is None else timeout,
+                creationflags=_CREATE_NO_WINDOW,
             )
         except subprocess.TimeoutExpired as exc:
             raise AdbCommandError(serial, command[3:], f"command timed out: {exc}") from exc

@@ -1,5 +1,6 @@
 import json
 import pathlib
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -59,6 +60,7 @@ class TransportTests(unittest.TestCase):
             capture_output=True,
             check=False,
             timeout=30.0,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
 
     def test_transport_surfaces_stderr_as_an_adb_error(self):

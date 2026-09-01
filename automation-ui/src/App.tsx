@@ -10,7 +10,9 @@ const emptyPlan = (): PlanDocument => ({ name: "未命名计划", serial: "", sc
 
 type Props = { api?: AutomationApi };
 
-export const App = ({ api = createWebViewApi() }: Props) => {
+export const App = ({ api }: Props) => {
+  const defaultApi = useMemo(() => createWebViewApi(), []);
+  const activeApi = api ?? defaultApi;
   const [devices, setDevices] = useState<Device[]>([]);
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [document, setDocument] = useState<PlanDocument>(emptyPlan);
@@ -22,14 +24,14 @@ export const App = ({ api = createWebViewApi() }: Props) => {
 
   const refreshDevices = useCallback(async () => {
     setPending("刷新设备");
-    try { setDevices(await api.listDevices()); } catch (error) { setResult({ ok: false, code: "device_list_error", message: String(error) }); } finally { setPending(null); }
-  }, [api]);
+    try { setDevices(await activeApi.listDevices()); } catch (error) { setResult({ ok: false, code: "device_list_error", message: String(error) }); } finally { setPending(null); }
+  }, [activeApi]);
   const refreshPlans = useCallback(async () => {
-    try { setPlans(await api.listPlans()); } catch (error) { setResult({ ok: false, code: "plan_list_error", message: String(error) }); }
-  }, [api]);
+    try { setPlans(await activeApi.listPlans()); } catch (error) { setResult({ ok: false, code: "plan_list_error", message: String(error) }); }
+  }, [activeApi]);
   const refreshRuns = useCallback(async (name: string) => {
-    try { setRuns(await api.listRuns(name)); } catch { setRuns([]); }
-  }, [api]);
+    try { setRuns(await activeApi.listRuns(name)); } catch { setRuns([]); }
+  }, [activeApi]);
   useEffect(() => { void refreshDevices(); void refreshPlans(); }, [refreshDevices, refreshPlans]);
 
   const canAct = document.serial !== "" && document.name.trim() !== "" && document.steps.length > 0;
@@ -39,16 +41,16 @@ export const App = ({ api = createWebViewApi() }: Props) => {
   const createPlan = () => { setDocument(emptyPlan()); setPath(null); setRuns([]); setResult(null); };
   const openPlan = async (plan: PlanSummary) => {
     setPending("打开计划");
-    try { const loaded = applyResult(await api.loadPlan(plan.path)); if (loaded.ok && loaded.document) { setDocument(loaded.document); setPath(plan.path); await refreshRuns(loaded.document.name); } } finally { setPending(null); }
+    try { const loaded = applyResult(await activeApi.loadPlan(plan.path)); if (loaded.ok && loaded.document) { setDocument(loaded.document); setPath(plan.path); await refreshRuns(loaded.document.name); } } finally { setPending(null); }
   };
   const save = async () => {
     setPending("保存计划");
-    try { const saved = applyResult(await api.savePlan(document, path ?? undefined)); if (saved.ok && saved.path) { setPath(saved.path); await refreshPlans(); await refreshRuns(document.name); } } finally { setPending(null); }
+    try { const saved = applyResult(await activeApi.savePlan(document, path ?? undefined)); if (saved.ok && saved.path) { setPath(saved.path); await refreshPlans(); await refreshRuns(document.name); } } finally { setPending(null); }
   };
   const record = async () => {
     setPending(recording ? "停止录制" : "开始录制");
     try {
-      const response = recording ? await api.stopRecording() : await api.startRecording(document.serial);
+      const response = recording ? await activeApi.stopRecording() : await activeApi.startRecording(document.serial);
       applyResult(response);
       if (response.ok && recording && response.document) { setDocument(response.document); setPath(response.path ?? null); await refreshPlans(); }
       if (response.ok) setRecording((active) => !active);
@@ -57,16 +59,16 @@ export const App = ({ api = createWebViewApi() }: Props) => {
   const run = async (dryRun: boolean) => {
     if (!path) { await save(); return; }
     setPending(dryRun ? "试运行" : "立即运行");
-    try { const response = applyResult(await api.runPlanNow(path, dryRun)); if (response.ok) await refreshRuns(document.name); } finally { setPending(null); }
+    try { const response = applyResult(await activeApi.runPlanNow(path, dryRun)); if (response.ok) await refreshRuns(document.name); } finally { setPending(null); }
   };
   const schedule = async (remove = false) => {
     if (!path) { await save(); return; }
     setPending(remove ? "禁用定时" : "启用定时");
-    try { applyResult(remove ? await api.removeSchedule(document.name) : await api.setSchedule(path)); } finally { setPending(null); }
+    try { applyResult(remove ? await activeApi.removeSchedule(document.name) : await activeApi.setSchedule(path)); } finally { setPending(null); }
   };
   const openArtifact = async (artifactPath: string) => {
     setPending("打开日志");
-    try { applyResult(await api.openArtifact(artifactPath)); } finally { setPending(null); }
+    try { applyResult(await activeApi.openArtifact(artifactPath)); } finally { setPending(null); }
   };
 
   return <main className="application-shell">
