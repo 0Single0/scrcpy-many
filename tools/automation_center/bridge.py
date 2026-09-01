@@ -161,6 +161,8 @@ class AutomationBridge:
 
         saved_document = dict(document)
         saved_document["name"] = plan.name
+        saved_document["serial"] = plan.serial
+        saved_document["schedule"] = plan.schedule
         temporary = target.with_suffix(".json.tmp")
         try:
             temporary.write_text(
@@ -278,6 +280,7 @@ class AutomationBridge:
             document = self._read_document(recording_path)
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
             document["name"] = f"recorded-{timestamp}"
+            document["schedule"] = {"time": "21:00", "days": ["daily"]}
             saved = self.save_plan(document)
             if not saved.get("ok"):
                 return saved

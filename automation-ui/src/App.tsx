@@ -8,6 +8,12 @@ import { RunPanel } from "./components/RunPanel";
 
 const emptyPlan = (): PlanDocument => ({ name: "未命名计划", serial: "", schedule: { time: "21:00", days: ["daily"] }, steps: [{ action: "wake" }] });
 
+const normalizePlan = (plan: PlanDocument): PlanDocument => ({
+  ...plan,
+  schedule: plan.schedule ?? { time: "21:00", days: ["daily"] },
+  steps: plan.steps ?? [],
+});
+
 type Props = { api?: AutomationApi };
 
 export const App = ({ api }: Props) => {
@@ -41,7 +47,7 @@ export const App = ({ api }: Props) => {
   const createPlan = () => { setDocument(emptyPlan()); setPath(null); setRuns([]); setResult(null); };
   const openPlan = async (plan: PlanSummary) => {
     setPending("打开计划");
-    try { const loaded = applyResult(await activeApi.loadPlan(plan.path)); if (loaded.ok && loaded.document) { setDocument(loaded.document); setPath(plan.path); await refreshRuns(loaded.document.name); } } finally { setPending(null); }
+    try { const loaded = applyResult(await activeApi.loadPlan(plan.path)); if (loaded.ok && loaded.document) { const normalized = normalizePlan(loaded.document); setDocument(normalized); setPath(plan.path); await refreshRuns(normalized.name); } } finally { setPending(null); }
   };
   const save = async () => {
     setPending("保存计划");
@@ -52,7 +58,7 @@ export const App = ({ api }: Props) => {
     try {
       const response = recording ? await activeApi.stopRecording() : await activeApi.startRecording(document.serial);
       applyResult(response);
-      if (response.ok && recording && response.document) { setDocument(response.document); setPath(response.path ?? null); await refreshPlans(); }
+      if (response.ok && recording && response.document) { setDocument(normalizePlan(response.document)); setPath(response.path ?? null); await refreshPlans(); }
       if (response.ok) setRecording((active) => !active);
     } finally { setPending(null); }
   };

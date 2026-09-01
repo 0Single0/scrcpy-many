@@ -41,6 +41,29 @@ describe("App", () => {
     expect(screen.getAllByText("2 个动作")).toHaveLength(1);
   });
 
+  it("keeps the editor rendered when a recorded plan has no schedule", async () => {
+    const user = userEvent.setup();
+    const api = createApi();
+    api.startRecording = vi.fn().mockResolvedValue({ ok: true });
+    api.stopRecording = vi.fn().mockResolvedValue({
+      ok: true,
+      path: "D:/plans/recorded.json",
+      document: {
+        name: "recorded-actions",
+        serial: "ABC123",
+        steps: [{ action: "tap", x: 10, y: 20 }],
+      },
+    });
+    render(<App api={api} />);
+
+    await user.click(await screen.findByRole("button", { name: /Pixel 8/ }));
+    await user.click(screen.getByRole("button", { name: "录制操作" }));
+    await user.click(screen.getByRole("button", { name: "停止录制" }));
+
+    expect(screen.getByLabelText("每日时间")).toHaveValue("21:00");
+    expect(screen.getAllByText("1 个动作")).toHaveLength(1);
+  });
+
   it("queries devices once when using the default WebView bridge", async () => {
     const api = createApi();
     window.pywebview = {

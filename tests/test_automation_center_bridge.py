@@ -262,6 +262,9 @@ class AutomationBridgeRecordingTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertTrue(pathlib.Path(result["path"]).is_file())
         self.assertEqual(self.bridge.list_plans()[0]["serial"], "ABC")
+        self.assertEqual(result["document"]["schedule"], {
+            "time": "21:00", "days": ["daily"],
+        })
         process.terminate.assert_called_once_with()
 
     @mock.patch("tools.automation_center.bridge.subprocess.Popen")
