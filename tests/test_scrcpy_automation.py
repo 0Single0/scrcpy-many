@@ -37,6 +37,13 @@ class PlanValidationTests(unittest.TestCase):
         self.assertEqual(plan.serial, "ABC123")
         self.assertEqual([step.action for step in plan.steps], ["wake", "launch"])
 
+    def test_validate_plan_rejects_recorder_key_action(self):
+        with self.assertRaises(PlanValidationError):
+            validate_plan({
+                "serial": "ABC",
+                "steps": [{"action": "keyevent", "code": 4, "key_action": 1}],
+            })
+
 
 class TransportTests(unittest.TestCase):
     def test_transport_passes_serial_as_one_argument(self):
@@ -226,6 +233,19 @@ class CliTests(unittest.TestCase):
         self.assertEqual(command[command.index("/ST") + 1], "21:00")
         self.assertIn(str(plan_path.resolve()), command[-1])
 
+    def test_scheduler_command_can_run_a_frozen_automation_executable(self):
+        plan_path = pathlib.Path("tools/examples/evening-check-in.json")
+
+        command = build_schtasks_create_command(
+            plan_path,
+            pathlib.Path("D:/scrcpy-release/scrcpy-automation.exe"),
+            pathlib.Path("D:/scrcpy-release/scrcpy-automation.exe"),
+            runner_is_executable=True,
+        )
+
+        self.assertIn('"D:\\scrcpy-release\\scrcpy-automation.exe" run', command[-1])
+        self.assertIn(str(plan_path.resolve()), command[-1])
+
     def test_remove_command_uses_delete_and_force(self):
         self.assertEqual(
             build_schtasks_delete_command("scrcpy-many:evening-check-in"),
@@ -308,6 +328,17 @@ class FullFlowTests(unittest.TestCase):
                 "serial": "ABC123",
                 "steps": [{"action": "text", "password": "secret"}],
             })
+
+    def test_validate_plan_accepts_recorder_keyevent(self):
+        plan = validate_plan({
+            "serial": "ABC",
+            "steps": [
+                {"action": "wait", "ms": 50},
+                {"action": "keyevent", "code": 4},
+            ],
+        })
+
+        self.assertEqual(plan.steps[-1].params["code"], 4)
 
     def test_load_plan_reads_json_from_disk(self):
         document = {

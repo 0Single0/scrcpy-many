@@ -44,6 +44,7 @@ Windows 选择窗口使用原生 Unicode 控件重新设计：
 ```text
 scrcpy-release/
 ├─ scrcpy.exe                 # 用户启动的入口
+├─ scrcpy-automation.exe      # 图形化自动化中心
 ├─ bin/
 │  ├─ scrcpy-core.exe         # 实际 scrcpy 客户端
 │  └─ scrcpy-server
@@ -53,6 +54,13 @@ scrcpy-release/
    ├─ adb.exe
    ├─ AdbWinApi.dll
    └─ AdbWinUsbApi.dll
+```
+
+自动化中心会在根目录下另外使用两个用户数据目录：
+
+```text
+plans/                         # 保存的 JSON 自动化计划
+logs/automation/               # 每次执行的日志、截图与结果
 ```
 
 入口启动器会自动设置 DLL 和 ADB 搜索路径，用户只需要双击根目录的
@@ -85,6 +93,21 @@ scrcpy.exe --serial 设备序列号 --record-actions evening-actions.json
 文件拖放、手柄以及锁屏凭据不会写入计划。录制出的 JSON 可交给
 `tools/scrcpy_automation.py run` 或 Windows 定时任务执行。
 
+### 图形化自动化中心
+
+发布目录中的 `scrcpy-automation.exe` 是本项目新增的本地 HTML/CSS
+图形界面，用于创建单台设备的定时操作计划：
+
+- 左侧显示所有 ADB 设备及状态；必须手动选择一台 `device` 状态的手机
+- 可以新建、打开、编辑、保存动作步骤，并用“试运行”检查步骤顺序
+- 可以启动 scrcpy 录制窗口，将点击、滑动和可回放按键保存为计划
+- 可以立即执行、启用每日定时或禁用定时，并查看每次运行日志
+- 页面仅能调用固定的本地 bridge 方法，不能传入任意 shell 命令或程序路径
+
+每个计划都保存明确的设备序列号。连接或移除其它手机不会改变计划的目标。
+录制和执行都要求该手机已完成 USB 调试授权。工具只能唤醒屏幕和关闭非安全
+锁屏；不会保存或绕过 PIN、图案、指纹、人脸等安全解锁方式。
+
 Linux 和 macOS 继续使用上游的标准命令行设备选择行为。
 
 ## 快速使用
@@ -100,6 +123,10 @@ Linux 和 macOS 继续使用上游的标准命令行设备选择行为。
 
 5. 连接多台手机时，在选择器中选中需要操控的设备（可使用 Ctrl/Shift 多选），
    然后点击 `Start selected`。
+
+要创建每日自动化计划，双击同目录的 `scrcpy-automation.exe`。在界面中选择一台
+状态为“可用”的设备，编辑步骤并先点击“保存计划”与“试运行”；确认无误后再使用
+“立即运行”或“启用定时”。
 
 也可以在终端中运行：
 
@@ -125,8 +152,13 @@ ninja -C D:\scrcpy-build-release
 .\tools\package_windows.ps1 `
     -BuildDir D:\scrcpy-build-release `
     -RuntimeDir D:\scrcpy-release `
-    -OutputDir D:\scrcpy-release-organized
+    -OutputDir D:\scrcpy-release-organized `
+    -AutomationExe D:\scrcpy-automation.exe
 ```
+
+使用 `tools/build_portable_release.ps1` 可以先构建 `scrcpy-automation.exe`，再生成
+一个完整的便携目录。Node、Python、PyInstaller 和中间编译文件都只放在临时目录，
+最终只保留显式指定的 `-OutputDir`。
 
 打包脚本会检查根目录没有 DLL，并确认 `bin`、`lib` 和
 `platform-tools` 中的文件齐全。对应检查脚本为

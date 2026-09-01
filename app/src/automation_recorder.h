@@ -21,8 +21,7 @@ sc_automation_recorder_record_touch(uint8_t action, int32_t x, int32_t y,
                                     uint32_t elapsed_ms);
 
 bool
-sc_automation_recorder_record_key(uint32_t keycode, uint8_t action,
-                                   uint32_t elapsed_ms);
+sc_automation_recorder_record_key(uint32_t keycode, uint32_t elapsed_ms);
 
 void
 sc_automation_recorder_stop(void);

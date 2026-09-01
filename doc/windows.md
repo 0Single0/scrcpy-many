@@ -23,14 +23,23 @@ directory layout below (the `tools/package_windows.ps1` script does this):
 ```text
 scrcpy-release/
   scrcpy.exe                 # launcher to run
+  scrcpy-automation.exe      # graphical local automation center
   bin/scrcpy-core.exe        # client executable
   bin/scrcpy-server
   lib/*.dll                  # runtime libraries
   platform-tools/adb.exe
+  plans/                     # user-created plans
+  logs/                      # automation run history
 ```
 
 The launcher adds `lib` and `platform-tools` to the child process search path,
 so the DLLs and ADB files do not need to remain in the top-level directory.
+
+`scrcpy.exe` remains the multi-device picker and mirroring entry point.
+`scrcpy-automation.exe` is the separate, portable HTML/CSS desktop interface
+for a single explicitly selected device: create/edit a plan, record actions,
+run it, and create or remove its daily schedule. It bundles its own Python
+runtime and WebView host, so the end user does not need Python or Node.
 
 ## Scheduled device automation
 
@@ -57,6 +66,20 @@ runner can wake the display and dismiss a non-secure keyguard, but it does not
 store or bypass PIN, pattern, fingerprint, or face unlock. The task runs under
 the logged-in Windows user. Run logs and failure screenshots are written under
 `logs/automation/<plan-name>/<timestamp>/`.
+
+## Graphical automation center
+
+Open `scrcpy-automation.exe` from the packaged directory. Select one ready
+ADB device in the Devices column, create or open a plan, then save it before
+using the run or scheduler controls. “Try run” validates the plan flow without
+sending ADB actions; “Run now” sends actions to the plan's explicit serial.
+
+“Record actions” opens one scrcpy session owned by the automation center. On
+stop, its touch, swipe, and supported Android key actions are validated before
+they are saved below `plans/`. The center cannot choose a target automatically,
+store credentials, execute arbitrary commands, or bypass secure device locks.
+Run logs and available failure screenshots stay under `logs/automation/` and
+can be opened from the history panel.
 
 
 ### From a package manager

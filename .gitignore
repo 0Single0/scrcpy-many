@@ -10,3 +10,5 @@ local.properties
 /scrcpy-server
 __pycache__/
 *.py[cod]
+/automation-ui/node_modules/
+/automation-ui/dist/

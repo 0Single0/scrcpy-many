@@ -10,6 +10,7 @@
 #include "automation_recorder.h"
 #include "events.h"
 #include "input_events.h"
+#include "keyboard_sdk.h"
 #include "screen.h"
 #include "shortcut_mod.h"
 #include "util/log.h"
@@ -441,15 +442,6 @@ sc_input_manager_process_key(struct sc_input_manager *im,
     bool shift = event->mod & SDL_KMOD_SHIFT;
     bool repeat = event->repeat;
 
-    if (im->recorder_started && !repeat) {
-        uint32_t now = SDL_GetTicks();
-        uint32_t elapsed = now - im->recorder_last_tick;
-        im->recorder_last_tick = now;
-        sc_automation_recorder_record_key(
-            (uint32_t) event->scancode,
-            down ? 1 : 0, elapsed);
-    }
-
     // Either the modifier includes a shortcut modifier, or the key
     // press/release is a modifier key.
     // The second condition is necessary to ignore the release of the modifier
@@ -744,6 +736,16 @@ sc_input_manager_process_key(struct sc_input_manager *im,
         .repeat = event->repeat,
         .mods_state = sc_mods_state_from_sdl(event->mod),
     };
+
+    enum android_keycode android_keycode;
+    if (im->recorder_started && down && !repeat
+            && sc_keyboard_sdk_get_android_keycode(im->kp, &evt,
+                                                   &android_keycode)) {
+        uint32_t now = SDL_GetTicks();
+        uint32_t elapsed = now - im->recorder_last_tick;
+        im->recorder_last_tick = now;
+        sc_automation_recorder_record_key(android_keycode, elapsed);
+    }
 
     assert(im->kp->ops->process_key);
     im->kp->ops->process_key(im->kp, &evt, ack_to_wait);

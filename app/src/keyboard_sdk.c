@@ -267,6 +267,21 @@ convert_input_key(const struct sc_key_event *event, struct sc_control_msg *msg,
     return true;
 }
 
+static struct sc_key_processor_ops keyboard_sdk_ops;
+
+bool
+sc_keyboard_sdk_get_android_keycode(const struct sc_key_processor *kp,
+                                    const struct sc_key_event *event,
+                                    enum android_keycode *keycode) {
+    if (kp->ops != &keyboard_sdk_ops) {
+        return false;
+    }
+
+    const struct sc_keyboard_sdk *kb = DOWNCAST(kp);
+    return convert_keycode(event->keycode, keycode, event->mods_state,
+                           kb->key_inject_mode);
+}
+
 static void
 sc_key_processor_process_key(struct sc_key_processor *kp,
                              const struct sc_key_event *event,
@@ -338,7 +353,7 @@ sc_keyboard_sdk_init(struct sc_keyboard_sdk *kb,
 
     kb->repeat = 0;
 
-    static const struct sc_key_processor_ops ops = {
+    keyboard_sdk_ops = (struct sc_key_processor_ops) {
         .process_key = sc_key_processor_process_key,
         .process_text = sc_key_processor_process_text,
     };
@@ -346,5 +361,5 @@ sc_keyboard_sdk_init(struct sc_keyboard_sdk *kb,
     // Key injection and clipboard synchronization are serialized
     kb->key_processor.async_paste = false;
     kb->key_processor.hid = false;
-    kb->key_processor.ops = &ops;
+    kb->key_processor.ops = &keyboard_sdk_ops;
 }

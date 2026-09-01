@@ -139,16 +139,14 @@ sc_automation_recorder_record_touch(uint8_t action, int32_t x, int32_t y,
 }
 
 bool
-sc_automation_recorder_record_key(uint32_t keycode, uint8_t action,
-                                   uint32_t elapsed_ms) {
+sc_automation_recorder_record_key(uint32_t keycode, uint32_t elapsed_ms) {
     if (!recorder.file || !record_wait(elapsed_ms)) {
         return false;
     }
     if (!step_prefix()) {
         return false;
     }
-    fprintf(recorder.file, "{\"action\":\"keyevent\",\"code\":%u,\"key_action\":%u}",
-            keycode, action);
+    fprintf(recorder.file, "{\"action\":\"keyevent\",\"code\":%u}", keycode);
     return !ferror(recorder.file);
 }
 

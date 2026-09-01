@@ -6,7 +6,10 @@ param(
     [string] $RuntimeDir,
 
     [Parameter(Mandatory = $true)]
-    [string] $OutputDir
+    [string] $OutputDir,
+
+    [Parameter(Mandatory = $true)]
+    [string] $AutomationExe
 )
 
 $buildRoot = (Resolve-Path -LiteralPath $BuildDir).Path
@@ -22,6 +25,8 @@ New-Item -ItemType Directory -Path $stageDir | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $stageDir 'bin') | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $stageDir 'lib') | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $stageDir 'platform-tools') | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $stageDir 'plans') | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $stageDir 'logs') | Out-Null
 
 Copy-Item -LiteralPath (Join-Path $buildRoot 'app\scrcpy.exe') `
     -Destination (Join-Path $stageDir 'scrcpy.exe')
@@ -29,6 +34,8 @@ Copy-Item -LiteralPath (Join-Path $buildRoot 'app\scrcpy-core.exe') `
     -Destination (Join-Path $stageDir 'bin\scrcpy-core.exe')
 Copy-Item -LiteralPath (Join-Path $buildRoot 'server\scrcpy-server') `
     -Destination (Join-Path $stageDir 'bin\scrcpy-server')
+Copy-Item -LiteralPath (Resolve-Path -LiteralPath $AutomationExe).Path `
+    -Destination (Join-Path $stageDir 'scrcpy-automation.exe')
 
 Get-ChildItem -LiteralPath $runtimeRoot -Filter '*.dll' -File |
     Copy-Item -Destination (Join-Path $stageDir 'lib')

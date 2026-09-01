@@ -18,7 +18,7 @@ main(int argc, char *argv[]) {
         SC_AUTOMATION_TOUCH_DOWN, 10, 20, 1080, 1920, 0));
     assert(sc_automation_recorder_record_touch(
         SC_AUTOMATION_TOUCH_UP, 10, 20, 1080, 1920, 100));
-    assert(sc_automation_recorder_record_key(4, 1, 50));
+    assert(sc_automation_recorder_record_key(4, 50));
     sc_automation_recorder_stop();
 
     FILE *file = fopen(path, "rb");
@@ -29,7 +29,8 @@ main(int argc, char *argv[]) {
     remove(path);
     assert(size > 0);
     assert(strstr(buffer, "\"action\":\"tap\"") != NULL);
-    assert(strstr(buffer, "\"action\":\"keyevent\"") != NULL);
+    assert(strstr(buffer, "\"action\":\"keyevent\",\"code\":4") != NULL);
+    assert(strstr(buffer, "\"key_action\"") == NULL);
     assert(strstr(buffer, "\"ms\":50") != NULL);
     return 0;
 }

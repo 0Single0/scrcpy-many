@@ -31,6 +31,19 @@ SUPPORTED_ACTIONS = frozenset({
 
 _CREDENTIAL_KEYS = frozenset({"pin", "password", "credential"})
 _TIME_PATTERN = re.compile(r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
+_ACTION_PARAMETER_KEYS = {
+    "wait": frozenset({"ms"}),
+    "wake": frozenset(),
+    "dismiss_keyguard": frozenset(),
+    "launch": frozenset({"package", "component"}),
+    "tap": frozenset({"x", "y"}),
+    "swipe": frozenset({"x1", "y1", "x2", "y2", "duration_ms"}),
+    "text": frozenset({"value"}),
+    "keyevent": frozenset({"code"}),
+    "tap_text": frozenset({"text"}),
+    "assert_text": frozenset({"text"}),
+    "screenshot": frozenset({"name"}),
+}
 
 
 class PlanValidationError(ValueError):
@@ -224,6 +237,11 @@ def _validate_step(document: Any, index: int) -> Step:
     _require(isinstance(action, str) and action in SUPPORTED_ACTIONS,
              f"{location}.action is unsupported")
     params = {key: value for key, value in document.items() if key != "action"}
+    unexpected_keys = set(params).difference(_ACTION_PARAMETER_KEYS[action])
+    if unexpected_keys:
+        raise PlanValidationError(
+            f"{location} has unsupported parameter: {sorted(unexpected_keys)[0]}"
+        )
 
     if action == "wait":
         ms = params.get("ms")
@@ -483,15 +501,19 @@ def build_schtasks_create_command(
     plan_path: pathlib.Path,
     python_path: pathlib.Path,
     runner_path: pathlib.Path,
+    runner_is_executable: bool = False,
 ) -> list[str]:
     """Build a non-shell schtasks command for one daily automation plan."""
     plan = load_plan(plan_path)
     plan_absolute = plan_path.resolve()
     python_absolute = python_path.resolve()
     runner_absolute = runner_path.resolve()
-    invocation = (
-        f'"{python_absolute}" "{runner_absolute}" run "{plan_absolute}"'
-    )
+    if runner_is_executable:
+        invocation = f'"{runner_absolute}" run "{plan_absolute}"'
+    else:
+        invocation = (
+            f'"{python_absolute}" "{runner_absolute}" run "{plan_absolute}"'
+        )
     return [
         "schtasks.exe", "/Create", "/F", "/TN", _task_name(plan),
         "/SC", "DAILY", "/ST", plan.schedule["time"], "/TR", invocation,

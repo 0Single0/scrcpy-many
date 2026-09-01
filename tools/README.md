@@ -38,6 +38,28 @@ offline devices remain visible so that their state is clear and can be fixed.
 
 ## Scheduled device automation
 
+### Packaged graphical automation center
+
+The portable release can include `scrcpy-automation.exe`, a local WebView
+desktop application for users who do not want to edit JSON or use a terminal.
+It lists ADB devices, requires an explicit ready serial, saves plans below
+`plans/`, launches an owned `scrcpy.exe --record-actions` session, runs plans,
+and creates or removes daily Task Scheduler jobs. Its frontend is bundled
+inside the executable; it does not start an HTTP server and does not require a
+system Python or Node installation.
+
+Build that executable with:
+
+```powershell
+.\tools\build_automation_center.ps1 -OutputExe D:\scrcpy-automation.exe
+```
+
+Then add it to a normal Windows package with `-AutomationExe`, or use
+`build_portable_release.ps1` to build and package in one command. Build
+dependencies live in a unique system temporary directory and are deleted after
+the build. The final release contains `scrcpy.exe`, `scrcpy-automation.exe`,
+`bin/`, `lib/`, `platform-tools/`, `plans/`, and `logs/` only.
+
 `scrcpy_automation.py` executes a validated JSON plan against one explicit ADB
 serial. It is intended for scheduled check-in flows and does not require a
 scrcpy window to be open.

@@ -5,10 +5,13 @@ param(
 
 $required = @(
     'scrcpy.exe',
+    'scrcpy-automation.exe',
     'bin\scrcpy-core.exe',
     'bin\scrcpy-server',
     'lib',
-    'platform-tools\adb.exe'
+    'platform-tools\adb.exe',
+    'plans',
+    'logs'
 )
 
 foreach ($relativePath in $required) {
