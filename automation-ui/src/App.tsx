@@ -5,66 +5,63 @@ import { createWebViewApi, type AutomationApi, type BridgeResult, type Device, t
 import { DeviceList } from "./components/DeviceList";
 import { PlanEditor } from "./components/PlanEditor";
 import { RunPanel } from "./components/RunPanel";
+import { ui, type Locale } from "./i18n";
 
 const emptyPlan = (): PlanDocument => ({ name: "未命名计划", serial: "", schedule: { time: "21:00", days: ["daily"] }, steps: [{ action: "wake" }] });
-
-const normalizePlan = (plan: PlanDocument): PlanDocument => ({
-  ...plan,
-  schedule: plan.schedule ?? { time: "21:00", days: ["daily"] },
-  steps: plan.steps ?? [],
-});
+const normalizePlan = (plan: PlanDocument): PlanDocument => ({ ...plan, schedule: plan.schedule ?? { time: "21:00", days: ["daily"] }, steps: plan.steps ?? [] });
 
 type Props = { api?: AutomationApi };
 
 export const App = ({ api }: Props) => {
   const defaultApi = useMemo(() => createWebViewApi(), []);
   const activeApi = api ?? defaultApi;
+  const [locale, setLocale] = useState<Locale>("zh");
   const [devices, setDevices] = useState<Device[]>([]);
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [document, setDocument] = useState<PlanDocument>(emptyPlan);
   const [path, setPath] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [recording, setRecording] = useState(false);
+  const [scheduled, setScheduled] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
   const [result, setResult] = useState<BridgeResult | null>(null);
+  const copy = ui[locale];
 
-  const refreshDevices = useCallback(async () => {
-    setPending("刷新设备");
-    try { setDevices(await activeApi.listDevices()); } catch (error) { setResult({ ok: false, code: "device_list_error", message: String(error) }); } finally { setPending(null); }
-  }, [activeApi]);
+  const refreshDevices = useCallback(async (showPending = true) => {
+    if (showPending) setPending(copy.refreshDevices);
+    try { setDevices(await activeApi.listDevices()); } catch (error) { setResult({ ok: false, code: "device_list_error", message: String(error) }); } finally { if (showPending) setPending(null); }
+  }, [activeApi, copy.refreshDevices]);
   const refreshPlans = useCallback(async () => {
     try { setPlans(await activeApi.listPlans()); } catch (error) { setResult({ ok: false, code: "plan_list_error", message: String(error) }); }
   }, [activeApi]);
   const refreshRuns = useCallback(async (name: string) => {
     try { setRuns(await activeApi.listRuns(name)); } catch { setRuns([]); }
   }, [activeApi]);
-  useEffect(() => { void refreshDevices(); void refreshPlans(); }, [refreshDevices, refreshPlans]);
+  useEffect(() => { void refreshDevices(false); void refreshPlans(); }, [refreshDevices, refreshPlans]);
+  useEffect(() => {
+    const interval = window.setInterval(() => { void refreshDevices(false); }, 10_000);
+    return () => window.clearInterval(interval);
+  }, [refreshDevices]);
 
   const canAct = document.serial !== "" && document.name.trim() !== "" && document.steps.length > 0;
   const currentPlan = useMemo(() => plans.find((plan) => plan.path === path), [path, plans]);
   const applyResult = useCallback((next: BridgeResult) => { setResult(next); return next; }, []);
   const chooseDevice = (device: Device) => setDocument((draft) => ({ ...draft, serial: device.serial }));
-  const createPlan = () => { setDocument(emptyPlan()); setPath(null); setRuns([]); setResult(null); };
+  const createPlan = () => { setDocument(emptyPlan()); setPath(null); setRuns([]); setResult(null); setScheduled(false); };
   const openPlan = async (plan: PlanSummary) => {
-    setPending("打开计划");
-    try { const loaded = applyResult(await activeApi.loadPlan(plan.path)); if (loaded.ok && loaded.document) { const normalized = normalizePlan(loaded.document); setDocument(normalized); setPath(plan.path); await refreshRuns(normalized.name); } } finally { setPending(null); }
+    setPending(copy.plan);
+    try { const loaded = applyResult(await activeApi.loadPlan(plan.path)); if (loaded.ok && loaded.document) { const normalized = normalizePlan(loaded.document); setDocument(normalized); setPath(plan.path); setScheduled(false); await refreshRuns(normalized.name); } } finally { setPending(null); }
   };
   const save = async () => {
-    setPending("保存计划");
+    setPending(copy.savePlan);
     try { const saved = applyResult(await activeApi.savePlan(document, path ?? undefined)); if (saved.ok && saved.path) { setPath(saved.path); await refreshPlans(); await refreshRuns(document.name); } } finally { setPending(null); }
   };
   const deletePlan = async (plan: PlanSummary) => {
-    setPending("删除计划");
-    try {
-      const deleted = applyResult(await activeApi.deletePlan(plan.path));
-      if (deleted.ok) {
-        if (path === plan.path) createPlan();
-        await refreshPlans();
-      }
-    } finally { setPending(null); }
+    setPending(copy.deletePlan);
+    try { const deleted = applyResult(await activeApi.deletePlan(plan.path)); if (deleted.ok) { if (path === plan.path) createPlan(); await refreshPlans(); } } finally { setPending(null); }
   };
   const record = async () => {
-    setPending(recording ? "停止录制" : "开始录制");
+    setPending(recording ? copy.stopRecording : copy.recordNew);
     try {
       const response = recording ? await activeApi.stopRecording() : await activeApi.startRecording(document.serial);
       applyResult(response);
@@ -74,27 +71,35 @@ export const App = ({ api }: Props) => {
   };
   const run = async (dryRun: boolean) => {
     if (!path) { await save(); return; }
-    setPending(dryRun ? "试运行" : "立即运行");
+    setPending(dryRun ? copy.dryRun : copy.runNow);
     try { const response = applyResult(await activeApi.runPlanNow(path, dryRun)); if (response.ok) await refreshRuns(document.name); } finally { setPending(null); }
   };
-  const schedule = async (remove = false) => {
+  const toggleSchedule = async () => {
     if (!path) { await save(); return; }
-    setPending(remove ? "禁用定时" : "启用定时");
-    try { applyResult(remove ? await activeApi.removeSchedule(document.name) : await activeApi.setSchedule(path)); } finally { setPending(null); }
+    setPending(scheduled ? copy.disableSchedule : copy.enableSchedule);
+    try {
+      const response = applyResult(scheduled ? await activeApi.removeSchedule(document.name) : await activeApi.setSchedule(path));
+      if (response.ok) setScheduled((active) => !active);
+    } finally { setPending(null); }
   };
   const openArtifact = async (artifactPath: string) => {
-    setPending("打开日志");
+    setPending(copy.openLog);
     try { applyResult(await activeApi.openArtifact(artifactPath)); } finally { setPending(null); }
   };
 
   return <main className="application-shell">
-    <DeviceList devices={devices} selectedSerial={document.serial} pending={pending === "刷新设备"} onRefresh={() => void refreshDevices()} onSelect={chooseDevice} />
+    <DeviceList devices={devices} selectedSerial={document.serial} pending={pending === copy.refreshDevices} copy={copy} onRefresh={() => void refreshDevices()} onSelect={chooseDevice} onToggleLocale={() => setLocale((active) => active === "zh" ? "en" : "zh")} />
     <div className="workspace">
-      <header className="app-header"><div><span className="eyebrow">SCRCPY MANY / AUTOMATION</span><h1>自动化中心</h1></div><div className="header-actions"><button type="button" className="header-button" onClick={createPlan}><FilePlus2 size={17} />新建计划</button><span className="current-plan"><FolderOpen size={16} />{currentPlan?.name ?? "未保存"}</span></div></header>
-      <div className="content-grid">
-        <nav className="plans-column" aria-label="已保存计划"><div className="section-title"><div><span className="eyebrow">SAVED PLANS</span><h2>计划库</h2></div></div><button className="library-record-button" type="button" onClick={() => void record()} disabled={!document.serial || pending !== null}>{recording ? <CircleStop size={16} /> : <Radio size={16} />}{recording ? "停止录制" : "录制新计划"}</button><div className="plan-list">{plans.length === 0 ? <p className="empty-copy">保存后会显示在这里</p> : plans.map((plan) => <article key={plan.path} className={`plan-row${plan.path === path ? " active" : ""}`}><button className="plan-open-button" type="button" onClick={() => void openPlan(plan)}><strong>{plan.name}</strong><small>{plan.serial}</small></button><button className="plan-delete-button" type="button" onClick={() => void deletePlan(plan)} aria-label={`删除计划：${plan.name}`} title={`删除计划：${plan.name}`} disabled={pending !== null}><Trash2 size={15} /></button></article>)}</div></nav>
-        <PlanEditor document={document} onChange={setDocument} />
-        <RunPanel canAct={canAct} pending={pending} result={result} runs={runs} onSave={() => void save()} onRun={(dryRun) => void run(dryRun)} onSchedule={() => void schedule()} onRemoveSchedule={() => void schedule(true)} onOpenArtifact={(artifactPath) => void openArtifact(artifactPath)} />
+      <header className="app-header"><div><span className="eyebrow">{copy.eyebrow}</span><h1>{copy.automationCenter}</h1></div><div className="header-actions"><button type="button" className="header-button" onClick={createPlan}><FilePlus2 size={17} />{copy.newPlan}</button><span className="current-plan"><FolderOpen size={16} />{currentPlan?.name ?? copy.unsaved}</span></div></header>
+      <div className="automation-workspace">
+        <nav className="plan-rail" aria-label={copy.planLibrary}>
+          <div className="rail-heading"><div><span className="eyebrow">{copy.savedPlansEyebrow}</span><h2>{copy.planLibrary}</h2></div><button className="library-record-button" type="button" onClick={() => void record()} disabled={!document.serial || pending !== null}>{recording ? <CircleStop size={16} /> : <Radio size={16} />}{recording ? copy.stopRecording : copy.recordNew}</button></div>
+          <div className="plan-list">{plans.length === 0 ? <p className="empty-copy">{copy.saveHint}</p> : plans.map((plan) => <article key={plan.path} className={`plan-row${plan.path === path ? " active" : ""}`}><button className="plan-open-button" type="button" onClick={() => void openPlan(plan)}><strong>{plan.name}</strong><small>{plan.serial}</small></button><button className="plan-delete-button" type="button" onClick={() => void deletePlan(plan)} aria-label={`${copy.deletePlan}: ${plan.name}`} title={`${copy.deletePlan}: ${plan.name}`} disabled={pending !== null}><Trash2 size={15} /></button></article>)}</div>
+        </nav>
+        <div className="plan-workbench">
+          <PlanEditor document={document} devices={devices} copy={copy} onChange={setDocument} />
+          <RunPanel canAct={canAct} pending={pending} result={result} runs={runs} scheduled={scheduled} copy={copy} onSave={() => void save()} onRun={(dryRun) => void run(dryRun)} onSchedule={() => void toggleSchedule()} onOpenArtifact={(artifactPath) => void openArtifact(artifactPath)} />
+        </div>
       </div>
     </div>
   </main>;

@@ -1,38 +1,41 @@
-import { CalendarClock, History, Play, Save } from "lucide-react";
+import { CalendarClock, FileText, Play, Save } from "lucide-react";
 
 import type { BridgeResult, RunSummary } from "../api";
+import type { UiCopy } from "../i18n";
 
 type Props = {
   canAct: boolean;
   pending: string | null;
   result: BridgeResult | null;
   runs: RunSummary[];
+  scheduled: boolean;
+  copy: UiCopy;
   onSave: () => void;
   onRun: (dryRun: boolean) => void;
   onSchedule: () => void;
-  onRemoveSchedule: () => void;
   onOpenArtifact: (path: string) => void;
 };
 
-const ResultMessage = ({ result }: { result: BridgeResult | null }) => {
-  if (!result) return <p className="status-copy">保存后可试运行，确认步骤无误再执行。</p>;
+const ResultMessage = ({ result, copy }: { result: BridgeResult | null; copy: UiCopy }) => {
+  if (!result) return <p className="status-copy">{copy.saveBeforeRun}</p>;
   if (!result.ok) return <p className="result error">{result.code}: {result.message}</p>;
-  if (result.success === true) return <p className="result success">执行成功，完成 {result.completed_steps} 个动作</p>;
-  return <p className="result success">操作已完成</p>;
+  if (result.success === true) return <p className="result success">{copy.runSuccess} {result.completed_steps} {copy.completedActions}</p>;
+  return <p className="result success">{copy.operationComplete}</p>;
 };
 
-export const RunPanel = ({ canAct, pending, result, runs, onSave, onRun, onSchedule, onRemoveSchedule, onOpenArtifact }: Props) => (
-  <aside className="run-panel" aria-label="执行控制">
-    <div className="section-title"><div><span className="eyebrow">COMMAND CENTER</span><h2>执行</h2></div></div>
-    <div className="command-stack">
-      <button className="primary-button" type="button" onClick={onSave} disabled={!canAct || pending !== null}><Save size={17} />保存计划</button>
-      <button className="secondary-button" type="button" onClick={() => onRun(true)} disabled={!canAct || pending !== null}><Play size={17} />试运行</button>
-      <button className="run-button" type="button" onClick={() => onRun(false)} disabled={!canAct || pending !== null}><Play size={17} />立即运行</button>
-      <button className="secondary-button" type="button" onClick={onSchedule} disabled={!canAct || pending !== null}><CalendarClock size={17} />启用定时</button>
-      <button className="text-button" type="button" onClick={onRemoveSchedule} disabled={!canAct || pending !== null}>禁用定时</button>
+export const RunPanel = ({ canAct, pending, result, runs, scheduled, copy, onSave, onRun, onSchedule, onOpenArtifact }: Props) => (
+  <section className="run-panel" aria-label={copy.execution}>
+    <div className="run-toolbar">
+      <div className="run-toolbar-copy"><span className="eyebrow">{copy.commandEyebrow}</span><h3>{copy.execution}</h3></div>
+      <div className="command-actions">
+        <button className="secondary-button" type="button" onClick={onSave} disabled={!canAct || pending !== null}><Save size={16} />{copy.savePlan}</button>
+        <button className="secondary-button" type="button" onClick={() => onRun(true)} disabled={!canAct || pending !== null} title={copy.dryRunHint}><Play size={16} />{copy.dryRun}</button>
+        <button className="run-button" type="button" onClick={() => onRun(false)} disabled={!canAct || pending !== null}><Play size={16} />{copy.runNow}</button>
+        <button className={`schedule-button${scheduled ? " active" : ""}`} type="button" onClick={onSchedule} disabled={!canAct || pending !== null}><CalendarClock size={16} />{scheduled ? copy.disableSchedule : copy.enableSchedule}</button>
+      </div>
     </div>
-    {pending && <p className="pending-copy">正在处理：{pending}</p>}
-    <ResultMessage result={result} />
-    <section className="history-section"><div className="history-heading"><History size={16} /><h3>最近运行</h3></div>{runs.length === 0 ? <p className="empty-copy">尚无执行记录</p> : <ul>{runs.map((run) => <li key={run.run_dir}><span className={`history-state ${run.status}`}>{run.status === "success" ? "成功" : "失败"}</span><small>{run.error || run.run_dir}</small><button type="button" className="artifact-button" onClick={() => onOpenArtifact(`${run.run_dir}/run.log`)}>打开日志</button></li>)}</ul>}</section>
-  </aside>
+    {pending && <p className="pending-copy">{copy.pending}: {pending}</p>}
+    <ResultMessage result={result} copy={copy} />
+    <section className="history-section"><div className="history-heading"><FileText size={16} /><h3>{copy.recentRuns}</h3></div>{runs.length === 0 ? <p className="empty-copy">{copy.noRuns}</p> : <ul>{runs.slice(0, 1).map((run) => <li key={run.run_dir}><span className={`history-state ${run.status}`}>{run.status === "success" ? "OK" : "FAIL"}</span><small>{run.error || run.run_dir}</small><button type="button" className="artifact-button" onClick={() => onOpenArtifact(`${run.run_dir}/run.log`)}>{copy.openLog}</button></li>)}</ul>}</section>
+  </section>
 );

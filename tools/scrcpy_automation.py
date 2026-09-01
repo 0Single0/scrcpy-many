@@ -498,8 +498,13 @@ def run_plan(
             return RunResult(False, completed, message)
 
 
+def scheduled_task_name(plan_name: str) -> str:
+    """Return a Windows Task Scheduler-safe name for an automation plan."""
+    return f"scrcpy-many-{plan_name}"
+
+
 def _task_name(plan: AutomationPlan) -> str:
-    return f"scrcpy-many:{plan.name}"
+    return scheduled_task_name(plan.name)
 
 
 def build_schtasks_create_command(

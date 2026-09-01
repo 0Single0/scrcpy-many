@@ -265,6 +265,7 @@ class CliTests(unittest.TestCase):
         command = build_schtasks_create_command(
             plan_path, pathlib.Path("C:/Python/python.exe"), pathlib.Path("tools/scrcpy_automation.py")
         )
+        self.assertEqual(command[command.index("/TN") + 1], "scrcpy-many-evening-check-in")
         self.assertIn("/SC", command)
         self.assertEqual(command[command.index("/SC") + 1], "DAILY")
         self.assertEqual(command[command.index("/ST") + 1], "21:00")
@@ -285,8 +286,8 @@ class CliTests(unittest.TestCase):
 
     def test_remove_command_uses_delete_and_force(self):
         self.assertEqual(
-            build_schtasks_delete_command("scrcpy-many:evening-check-in"),
-            ["schtasks.exe", "/Delete", "/TN", "scrcpy-many:evening-check-in", "/F"],
+            build_schtasks_delete_command("scrcpy-many-evening-check-in"),
+            ["schtasks.exe", "/Delete", "/TN", "scrcpy-many-evening-check-in", "/F"],
         )
 
     def test_validate_cli_returns_zero_for_example(self):

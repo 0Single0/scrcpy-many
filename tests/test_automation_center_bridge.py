@@ -89,10 +89,10 @@ class AutomationBridgeStorageTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertFalse(pathlib.Path(saved["path"]).exists())
         self.assertEqual(run.call_args_list[0].args[0], [
-            "schtasks.exe", "/Query", "/TN", "scrcpy-many:morning",
+            "schtasks.exe", "/Query", "/TN", "scrcpy-many-morning",
         ])
         self.assertEqual(run.call_args_list[1].args[0], [
-            "schtasks.exe", "/Delete", "/TN", "scrcpy-many:morning", "/F",
+            "schtasks.exe", "/Delete", "/TN", "scrcpy-many-morning", "/F",
         ])
 
     @mock.patch("tools.automation_center.bridge.os.startfile", create=True)
@@ -154,7 +154,7 @@ class AutomationBridgeSchedulerTests(unittest.TestCase):
         result = self.bridge.set_schedule(self.saved["path"])
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["task_name"], "scrcpy-many:morning")
+        self.assertEqual(result["task_name"], "scrcpy-many-morning")
         command = run.call_args.args[0]
         self.assertEqual(command[:4], ["schtasks.exe", "/Create", "/F", "/TN"])
         self.assertIn("/SC", command)
@@ -168,7 +168,7 @@ class AutomationBridgeSchedulerTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(run.call_args.args[0], [
-            "schtasks.exe", "/Delete", "/TN", "scrcpy-many:morning", "/F",
+            "schtasks.exe", "/Delete", "/TN", "scrcpy-many-morning", "/F",
         ])
 
 

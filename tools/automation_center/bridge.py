@@ -18,6 +18,7 @@ from tools.scrcpy_automation import (
     build_schtasks_delete_command,
     load_plan as load_automation_plan,
     run_plan,
+    scheduled_task_name,
     validate_plan,
 )
 from tools.scrcpy_launcher import parse_adb_devices
@@ -184,7 +185,7 @@ class AutomationBridge:
         except PlanValidationError as exc:
             return self._failure("validation_error", str(exc))
 
-        task_name = f"scrcpy-many:{plan.name}"
+        task_name = scheduled_task_name(plan.name)
         try:
             query = subprocess.run(
                 ["schtasks.exe", "/Query", "/TN", task_name],
@@ -399,14 +400,14 @@ class AutomationBridge:
             return self._failure("scheduler_error", str(exc))
         if completed.returncode:
             return self._failure("scheduler_error", completed.stderr.strip() or "schtasks failed")
-        return {"ok": True, "task_name": f"scrcpy-many:{plan.name}"}
+        return {"ok": True, "task_name": scheduled_task_name(plan.name)}
 
     def remove_schedule(self, name: str) -> dict[str, object]:
         try:
             filename = self._plan_filename(name)
         except PlanValidationError as exc:
             return self._failure("validation_error", str(exc))
-        task_name = f"scrcpy-many:{filename[:-5]}"
+        task_name = scheduled_task_name(filename[:-5])
         command = build_schtasks_delete_command(task_name)
         try:
             completed = subprocess.run(

@@ -1,28 +1,31 @@
-import { RefreshCw, Smartphone } from "lucide-react";
+import { Languages, RefreshCw, Smartphone } from "lucide-react";
 
 import type { Device } from "../api";
+import type { UiCopy } from "../i18n";
 
 type Props = {
   devices: Device[];
   selectedSerial: string;
   pending: boolean;
+  copy: UiCopy;
   onRefresh: () => void;
   onSelect: (device: Device) => void;
+  onToggleLocale: () => void;
 };
 
-export const DeviceList = ({ devices, selectedSerial, pending, onRefresh, onSelect }: Props) => (
-  <aside className="device-sidebar" aria-label="设备列表">
+export const DeviceList = ({ devices, selectedSerial, pending, copy, onRefresh, onSelect, onToggleLocale }: Props) => (
+  <aside className="device-sidebar" aria-label={copy.devices}>
     <div className="sidebar-heading">
       <div>
-        <span className="eyebrow">ADB TARGETS</span>
-        <h2>设备</h2>
+        <span className="eyebrow">{copy.devicesEyebrow}</span>
+        <h2>{copy.devices}</h2>
       </div>
-      <button className="icon-button" type="button" onClick={onRefresh} disabled={pending} aria-label="刷新设备" title="刷新设备">
-        <RefreshCw size={17} aria-hidden="true" />
+      <button className="icon-button" type="button" onClick={onRefresh} disabled={pending} aria-label={copy.refreshDevices} title={copy.refreshDevices}>
+        <RefreshCw size={16} aria-hidden="true" />
       </button>
     </div>
     <div className="device-list">
-      {devices.length === 0 ? <p className="empty-copy">未发现设备</p> : devices.map((device) => {
+      {devices.length === 0 ? <p className="empty-copy">{copy.noDevices}</p> : devices.map((device) => {
         const ready = device.state === "device";
         const active = device.serial === selectedSerial;
         return (
@@ -34,15 +37,19 @@ export const DeviceList = ({ devices, selectedSerial, pending, onRefresh, onSele
             onClick={() => onSelect(device)}
             aria-pressed={active}
           >
-            <Smartphone size={17} aria-hidden="true" />
+            <Smartphone size={16} aria-hidden="true" />
             <span className="device-copy">
               <strong>{device.model || device.serial}</strong>
               <small>{device.serial}</small>
             </span>
-            <span className={`state-tag ${ready ? "ready" : "not-ready"}`}>{ready ? "可用" : device.state}</span>
+            <span className={`state-tag ${ready ? "ready" : "not-ready"}`}>{ready ? copy.ready : device.state}</span>
           </button>
         );
       })}
     </div>
+    <button className="locale-button" type="button" onClick={onToggleLocale} aria-label={copy.language}>
+      <Languages size={16} aria-hidden="true" />
+      <span>{copy.language}</span>
+    </button>
   </aside>
 );
