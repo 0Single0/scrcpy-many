@@ -769,6 +769,28 @@ sc_input_manager_get_position(struct sc_input_manager *im, int32_t x,
 }
 
 static void
+sc_input_manager_record_touch(struct sc_input_manager *im, uint8_t action,
+                              int32_t x, int32_t y) {
+    if (!im->recorder_started || !im->mp) {
+        return;
+    }
+
+    struct sc_position position =
+        sc_input_manager_get_position(im, x, y);
+    if (!position.screen_size.width || !position.screen_size.height) {
+        // Relative mouse mode does not have an absolute device position.
+        return;
+    }
+
+    uint32_t now = SDL_GetTicks();
+    uint32_t elapsed = now - im->recorder_last_tick;
+    im->recorder_last_tick = now;
+    sc_automation_recorder_record_touch(
+        action, position.point.x, position.point.y,
+        position.screen_size.width, position.screen_size.height, elapsed);
+}
+
+static void
 sc_input_manager_process_mouse_motion(struct sc_input_manager *im,
                                       const SDL_MouseMotionEvent *event) {
     if (im->camera || !im->mp || im->screen->paused || im->disconnected) {
@@ -781,13 +803,8 @@ sc_input_manager_process_mouse_motion(struct sc_input_manager *im,
     }
 
     if (im->recorder_started && (im->mouse_buttons_state & SC_MOUSE_BUTTON_LEFT)) {
-        uint32_t now = SDL_GetTicks();
-        uint32_t elapsed = now - im->recorder_last_tick;
-        im->recorder_last_tick = now;
-        sc_automation_recorder_record_touch(
-            SC_AUTOMATION_TOUCH_MOTION, event->x, event->y,
-            (uint16_t) im->screen->content_size.width,
-            (uint16_t) im->screen->content_size.height, elapsed);
+        sc_input_manager_record_touch(im, SC_AUTOMATION_TOUCH_MOTION,
+                                      event->x, event->y);
     }
 
     struct sc_mouse_motion_event evt = {
@@ -836,16 +853,12 @@ sc_input_manager_process_touch(struct sc_input_manager *im,
     int32_t y = event->y * (int32_t) window_size.height;
 
     if (im->recorder_started) {
-        uint32_t now = SDL_GetTicks();
-        uint32_t elapsed = now - im->recorder_last_tick;
-        im->recorder_last_tick = now;
         uint8_t action = event->type == SDL_EVENT_FINGER_DOWN
                         ? SC_AUTOMATION_TOUCH_DOWN
                         : event->type == SDL_EVENT_FINGER_UP
                           ? SC_AUTOMATION_TOUCH_UP
                           : SC_AUTOMATION_TOUCH_MOTION;
-        sc_automation_recorder_record_touch(
-            action, x, y, window_size.width, window_size.height, elapsed);
+        sc_input_manager_record_touch(im, action, x, y);
     }
 
     struct sc_touch_event evt = {
@@ -901,14 +914,9 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
     bool down = event->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
 
     if (im->recorder_started && event->button == SDL_BUTTON_LEFT) {
-        uint32_t now = SDL_GetTicks();
-        uint32_t elapsed = now - im->recorder_last_tick;
-        im->recorder_last_tick = now;
-        sc_automation_recorder_record_touch(
-            down ? SC_AUTOMATION_TOUCH_DOWN : SC_AUTOMATION_TOUCH_UP,
-            event->x, event->y,
-            (uint16_t) im->screen->content_size.width,
-            (uint16_t) im->screen->content_size.height, elapsed);
+        sc_input_manager_record_touch(
+            im, down ? SC_AUTOMATION_TOUCH_DOWN : SC_AUTOMATION_TOUCH_UP,
+            event->x, event->y);
     }
 
     enum sc_mouse_button button = sc_mouse_button_from_sdl(event->button);
