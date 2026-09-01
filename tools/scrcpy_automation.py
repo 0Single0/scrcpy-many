@@ -22,6 +22,7 @@ SUPPORTED_ACTIONS = frozenset({
     "launch",
     "tap",
     "swipe",
+    "unlock_swipe",
     "text",
     "keyevent",
     "tap_text",
@@ -38,6 +39,7 @@ _ACTION_PARAMETER_KEYS = {
     "launch": frozenset({"package", "component"}),
     "tap": frozenset({"x", "y"}),
     "swipe": frozenset({"x1", "y1", "x2", "y2", "duration_ms"}),
+    "unlock_swipe": frozenset({"x1", "y1", "x2", "y2", "duration_ms"}),
     "text": frozenset({"value"}),
     "keyevent": frozenset({"code"}),
     "tap_text": frozenset({"text"}),
@@ -260,7 +262,7 @@ def _validate_step(document: Any, index: int) -> Step:
             value = params.get(key)
             _require(isinstance(value, int) and not isinstance(value, bool) and value >= 0,
                      f"{location}.{key} must be a non-negative integer")
-    elif action == "swipe":
+    elif action in {"swipe", "unlock_swipe"}:
         for key in ("x1", "y1", "x2", "y2", "duration_ms"):
             value = params.get(key)
             _require(isinstance(value, int) and not isinstance(value, bool) and value >= 0,
@@ -422,7 +424,7 @@ def _execute_step(step: Step, transport: Any, serial: str, run_dir: pathlib.Path
             transport.run(serial, ["shell", "monkey", "-p", params["package"], "1"])
     elif action == "tap":
         transport.run(serial, ["shell", "input", "tap", str(params["x"]), str(params["y"])])
-    elif action == "swipe":
+    elif action in {"swipe", "unlock_swipe"}:
         transport.run(serial, [
             "shell", "input", "swipe", str(params["x1"]), str(params["y1"]),
             str(params["x2"]), str(params["y2"]), str(params["duration_ms"]),

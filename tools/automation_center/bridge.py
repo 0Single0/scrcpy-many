@@ -23,6 +23,22 @@ from tools.scrcpy_automation import (
 from tools.scrcpy_launcher import parse_adb_devices
 
 _CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+_WM_CLOSE = 0x0010
+
+
+def _request_window_close(title: str) -> bool:
+    """Ask the owned recording window to close so scrcpy can finalize JSON."""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+
+        window = ctypes.windll.user32.FindWindowW(None, title)
+        return bool(window and ctypes.windll.user32.PostMessageW(
+            window, _WM_CLOSE, 0, 0,
+        ))
+    except (AttributeError, OSError):
+        return False
 
 
 class AutomationBridge:
@@ -41,6 +57,7 @@ class AutomationBridge:
         self._recording_process: Any | None = None
         self._recording_path: Path | None = None
         self._recording_serial: str | None = None
+        self._recording_window_title: str | None = None
 
     @staticmethod
     def _failure(code: str, message: str) -> dict[str, object]:
@@ -196,10 +213,20 @@ class AutomationBridge:
 
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         output = self.plans_dir / f".recording-{timestamp}.json"
+        title = f"scrcpy automation - {serial}"
+        environment = os.environ.copy()
+        runtime_paths = [
+            str(self.portable_root / "lib"),
+            str(self.portable_root / "platform-tools"),
+            environment.get("PATH", ""),
+        ]
+        environment["PATH"] = os.pathsep.join(path for path in runtime_paths if path)
         command = [
-            str(self.portable_root / "scrcpy.exe"),
+            str(self.portable_root / "bin" / "scrcpy-core.exe"),
             "--serial",
             serial,
+            "--window-title",
+            title,
             "--record-actions",
             str(output),
         ]
@@ -207,6 +234,7 @@ class AutomationBridge:
             process = subprocess.Popen(
                 command,
                 cwd=self.portable_root,
+                env=environment,
                 creationflags=_CREATE_NO_WINDOW,
             )
         except OSError as exc:
@@ -215,6 +243,7 @@ class AutomationBridge:
         self._recording_process = process
         self._recording_path = output
         self._recording_serial = serial
+        self._recording_window_title = title
         return {"ok": True, "serial": serial, "path": str(output)}
 
     def stop_recording(self) -> dict[str, object]:
@@ -224,18 +253,27 @@ class AutomationBridge:
 
         process = self._recording_process
         recording_path = self._recording_path
+        window_title = self._recording_window_title
         self._recording_process = None
         self._recording_path = None
         self._recording_serial = None
+        self._recording_window_title = None
 
         try:
             if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=5)
+                if window_title and _request_window_close(window_title):
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.terminate()
+                        process.wait(timeout=5)
+                else:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
 
             document = self._read_document(recording_path)
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")

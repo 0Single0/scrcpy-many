@@ -1,5 +1,4 @@
 import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
 
 import type { AutomationStep, PlanDocument } from "../api";
 
@@ -10,6 +9,7 @@ const actionLabels: Record<string, string> = {
   launch: "打开应用",
   tap: "点击坐标",
   swipe: "滑动",
+  unlock_swipe: "向上滑动（显示解锁界面）",
   text: "输入文本",
   keyevent: "按键事件",
   tap_text: "点击文字",
@@ -24,6 +24,7 @@ const fieldDefinitions: Record<string, Array<[string, string, string]>> = {
   launch: [["package", "应用包名", "com.example.app"]],
   tap: [["x", "横坐标", "540"], ["y", "纵坐标", "1460"]],
   swipe: [["x1", "起点横坐标", "540"], ["y1", "起点纵坐标", "1500"], ["x2", "终点横坐标", "540"], ["y2", "终点纵坐标", "600"], ["duration_ms", "持续毫秒", "300"]],
+  unlock_swipe: [["x1", "起点横坐标", "540"], ["y1", "起点纵坐标", "1800"], ["x2", "终点横坐标", "540"], ["y2", "终点纵坐标", "600"], ["duration_ms", "持续毫秒", "300"]],
   text: [["value", "文本", ""]],
   keyevent: [["code", "Android 键码", "4"]],
   tap_text: [["text", "目标文字", "打卡"]],
@@ -42,7 +43,6 @@ type Props = {
 };
 
 export const PlanEditor = ({ document, onChange }: Props) => {
-  const [menuOpen, setMenuOpen] = useState(false);
   const updateDocument = (key: "name" | "serial", value: string) => onChange({ ...document, [key]: value });
   const updateStep = (index: number, key: string, value: string) => {
     const definition = (fieldDefinitions[document.steps[index].action] ?? []).find(([field]) => field === key);
@@ -59,7 +59,6 @@ export const PlanEditor = ({ document, onChange }: Props) => {
   const removeStep = (index: number) => onChange({ ...document, steps: document.steps.filter((_, position) => position !== index) });
   const addStep = (action: string) => {
     onChange({ ...document, steps: [...document.steps, createStep(action)] });
-    setMenuOpen(false);
   };
 
   return (
@@ -82,6 +81,7 @@ export const PlanEditor = ({ document, onChange }: Props) => {
             <div className="step-number"><GripVertical size={16} aria-hidden="true" />{String(index + 1).padStart(2, "0")}</div>
             <div className="step-body">
               <strong>{actionLabels[step.action] ?? step.action}</strong>
+              {step.action === "unlock_swipe" && <p className="step-note">仅显示安全锁屏界面；PIN、图案和生物识别仍需在手机上完成。</p>}
               <div className="step-fields">
                 {(fieldDefinitions[step.action] ?? []).map(([key, label, placeholder]) => (
                   <label key={key}>{label}<input value={String(step[key] ?? "")} placeholder={placeholder} onChange={(event) => updateStep(index, key, event.target.value)} /></label>
@@ -97,8 +97,7 @@ export const PlanEditor = ({ document, onChange }: Props) => {
         ))}
       </div>
       <div className="add-step-wrap">
-        <button className="secondary-button" type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen}><Plus size={17} />添加动作</button>
-        {menuOpen && <div className="action-menu" role="menu">{Object.entries(actionLabels).map(([action, label]) => <button type="button" role="menuitem" key={action} onClick={() => addStep(action)}>{label}</button>)}</div>}
+        <label className="action-picker" htmlFor="action-picker"><span><Plus size={17} aria-hidden="true" />添加动作</span><select id="action-picker" aria-label="添加动作" value="" onChange={(event) => { if (event.target.value) addStep(event.target.value); }}><option value="" disabled>选择一个动作</option>{Object.entries(actionLabels).map(([action, label]) => <option value={action} key={action}>{label}</option>)}</select></label>
       </div>
     </section>
   );

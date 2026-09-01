@@ -31,6 +31,16 @@ describe("App", () => {
     expect(screen.getByLabelText("目标设备")).toHaveValue("ABC123");
   });
 
+  it("adds an unlock swipe action from the visible action picker", async () => {
+    const user = userEvent.setup();
+    render(<App api={createApi()} />);
+
+    await user.selectOptions(screen.getByLabelText("添加动作"), "unlock_swipe");
+
+    expect(screen.getByText(/PIN、图案和生物识别仍需在手机上完成/)).toBeInTheDocument();
+    expect(screen.getAllByText("2 个动作")).toHaveLength(1);
+  });
+
   it("queries devices once when using the default WebView bridge", async () => {
     const api = createApi();
     window.pywebview = {

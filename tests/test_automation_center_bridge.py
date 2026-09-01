@@ -171,12 +171,56 @@ class AutomationBridgeRecordingTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         command = popen.call_args.args[0]
-        self.assertEqual(command[:4], [str(self.root.resolve() / "scrcpy.exe"), "--serial", "ABC", "--record-actions"])
-        self.assertTrue(command[4].endswith(".json"))
-        self.assertEqual(popen.call_args.kwargs, {
-            "cwd": self.root.resolve(),
-            "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        })
+        self.assertEqual(command[:4], [str(self.root.resolve() / "bin" / "scrcpy-core.exe"), "--serial", "ABC", "--window-title"])
+        self.assertEqual(command[4], "scrcpy automation - ABC")
+        self.assertEqual(command[5], "--record-actions")
+        self.assertTrue(command[6].endswith(".json"))
+        self.assertEqual(popen.call_args.kwargs["cwd"], self.root.resolve())
+        self.assertEqual(popen.call_args.kwargs["creationflags"], getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        self.assertTrue(str(popen.call_args.kwargs["env"]["PATH"]).startswith(
+            str(self.root.resolve() / "lib")
+        ))
+
+    @mock.patch("tools.automation_center.bridge._request_window_close", return_value=True, create=True)
+    @mock.patch("tools.automation_center.bridge.subprocess.Popen")
+    def test_stop_recording_requests_a_graceful_window_close_before_reading_plan(self, popen, close_window):
+        process = mock.Mock()
+        process.poll.return_value = None
+        popen.return_value = process
+
+        started = self.bridge.start_recording("ABC")
+        recording_path = pathlib.Path(started["path"])
+        recording_path.write_text(json.dumps({
+            "name": "recorded-actions",
+            "serial": "ABC",
+            "steps": [{"action": "swipe", "x1": 1, "y1": 2, "x2": 1, "y2": 20, "duration_ms": 300}],
+        }), encoding="utf-8")
+
+        result = self.bridge.stop_recording()
+
+        self.assertTrue(result["ok"])
+        close_window.assert_called_once_with("scrcpy automation - ABC")
+        process.terminate.assert_not_called()
+
+    @mock.patch("tools.automation_center.bridge.subprocess.Popen")
+    def test_stop_recording_falls_back_to_terminate_if_window_close_fails(self, popen):
+        process = mock.Mock()
+        process.poll.return_value = None
+        popen.return_value = process
+
+        started = self.bridge.start_recording("ABC")
+        pathlib.Path(started["path"]).write_text(json.dumps({
+            "name": "recorded-actions",
+            "serial": "ABC",
+            "steps": [{"action": "tap", "x": 10, "y": 20}],
+        }), encoding="utf-8")
+
+        with mock.patch("tools.automation_center.bridge._request_window_close", return_value=False, create=True):
+            result = self.bridge.stop_recording()
+
+        self.assertTrue(result["ok"])
+        process.terminate.assert_called_once_with()
+
 
     def test_start_recording_rejects_a_device_that_is_not_ready(self):
         transport = FakeAdbTransport([subprocess.CompletedProcess([], 0, "offline\n", "")])

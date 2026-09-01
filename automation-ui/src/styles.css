@@ -25,3 +25,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 @media (max-width: 1180px) { body { min-width: 860px; }.content-grid { grid-template-columns: 170px minmax(400px, 1fr) 220px; gap: 12px; padding: 12px; }.metadata-grid { grid-template-columns: 1fr 1fr; }.metadata-grid label:last-child { grid-column: span 2; }.app-header { padding-inline: 18px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
 .artifact-button { width: fit-content; border: 0; padding: 0; color: var(--navy); background: transparent; font-size: 11px; font-weight: 700; text-decoration: underline; }
+.step-note { margin: 7px 0 0; color: #75551c; font-size: 11px; line-height: 1.45; }
+.action-picker { display: inline-grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.action-picker span { display: inline-flex; align-items: center; gap: 7px; color: var(--navy); font-size: 13px; }
+.action-picker select { width: 260px; min-height: 36px; border: 1px solid #c8d3da; border-radius: 5px; padding: 0 9px; color: var(--ink); background: #edf1f3; font-weight: 700; }

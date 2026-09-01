@@ -45,6 +45,21 @@ class PlanValidationTests(unittest.TestCase):
                 "steps": [{"action": "keyevent", "code": 4, "key_action": 1}],
             })
 
+    def test_validate_plan_accepts_unlock_swipe_action(self):
+        plan = validate_plan({
+            "serial": "ABC",
+            "steps": [{
+                "action": "unlock_swipe",
+                "x1": 540,
+                "y1": 1800,
+                "x2": 540,
+                "y2": 600,
+                "duration_ms": 300,
+            }],
+        })
+
+        self.assertEqual(plan.steps[0].action, "unlock_swipe")
+
 
 class TransportTests(unittest.TestCase):
     def test_transport_passes_serial_as_one_argument(self):
@@ -132,6 +147,26 @@ class ActionExecutionTests(unittest.TestCase):
                 ["shell", "input", "text", "hello"],
                 ["shell", "input", "keyevent", "BACK"],
             ],
+        )
+
+    def test_executes_unlock_swipe_as_an_android_input_swipe(self):
+        plan = self.make_plan([{
+            "action": "unlock_swipe",
+            "x1": 540,
+            "y1": 1800,
+            "x2": 540,
+            "y2": 600,
+            "duration_ms": 300,
+        }])
+        transport = FakeAdbTransport()
+
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_plan(plan, transport, pathlib.Path(directory))
+
+        self.assertTrue(result.success)
+        self.assertIn(
+            ["shell", "input", "swipe", "540", "1800", "540", "600", "300"],
+            [call[1] for call in transport.calls],
         )
 
     def test_tap_text_uses_the_center_of_the_matching_node(self):
