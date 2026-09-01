@@ -1,4 +1,5 @@
-import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import type { AutomationStep, PlanDocument } from "../api";
 
@@ -43,17 +44,18 @@ type Props = {
 };
 
 export const PlanEditor = ({ document, onChange }: Props) => {
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const updateDocument = (key: "name" | "serial", value: string) => onChange({ ...document, [key]: value });
   const updateStep = (index: number, key: string, value: string) => {
     const definition = (fieldDefinitions[document.steps[index].action] ?? []).find(([field]) => field === key);
     const nextValue = definition && /^\d+$/.test(definition[2]) ? Number(value || 0) : value;
     onChange({ ...document, steps: document.steps.map((step, position) => position === index ? { ...step, [key]: nextValue } : step) });
   };
-  const moveStep = (index: number, direction: number) => {
-    const target = index + direction;
-    if (target < 0 || target >= document.steps.length) return;
+  const moveStep = (from: number, target: number) => {
+    if (from === target || target < 0 || target >= document.steps.length) return;
     const steps = [...document.steps];
-    [steps[index], steps[target]] = [steps[target], steps[index]];
+    const [step] = steps.splice(from, 1);
+    steps.splice(target, 0, step);
     onChange({ ...document, steps });
   };
   const removeStep = (index: number) => onChange({ ...document, steps: document.steps.filter((_, position) => position !== index) });
@@ -77,8 +79,8 @@ export const PlanEditor = ({ document, onChange }: Props) => {
       </div>
       <div className="timeline" aria-label="操作步骤">
         {document.steps.map((step, index) => (
-          <article className="step-card" key={`${step.action}-${index}`}>
-            <div className="step-number"><GripVertical size={16} aria-hidden="true" />{String(index + 1).padStart(2, "0")}</div>
+          <article className={`step-card${draggedIndex === index ? " dragging" : ""}`} key={`${step.action}-${index}`} role="article" aria-label={`步骤 ${index + 1}：${actionLabels[step.action] ?? step.action}`} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (draggedIndex !== null) moveStep(draggedIndex, index); setDraggedIndex(null); }}>
+            <div className="step-number"><button className="step-drag-handle" type="button" draggable aria-label={`拖拽步骤 ${index + 1}`} title="按住并拖动步骤" onDragStart={(event) => { if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"; setDraggedIndex(index); }} onDragEnd={() => setDraggedIndex(null)}><GripVertical size={16} aria-hidden="true" /></button><span>{String(index + 1).padStart(2, "0")}</span></div>
             <div className="step-body">
               <strong>{actionLabels[step.action] ?? step.action}</strong>
               {step.action === "unlock_swipe" && <p className="step-note">仅显示安全锁屏界面；PIN、图案和生物识别仍需在手机上完成。</p>}
@@ -89,8 +91,6 @@ export const PlanEditor = ({ document, onChange }: Props) => {
               </div>
             </div>
             <div className="step-actions">
-              <button className="icon-button" type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label="上移步骤" title="上移步骤"><ChevronUp size={16} /></button>
-              <button className="icon-button" type="button" onClick={() => moveStep(index, 1)} disabled={index === document.steps.length - 1} aria-label="下移步骤" title="下移步骤"><ChevronDown size={16} /></button>
               <button className="icon-button danger" type="button" onClick={() => removeStep(index)} aria-label="删除步骤" title="删除步骤"><Trash2 size={16} /></button>
             </div>
           </article>

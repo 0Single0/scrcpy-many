@@ -72,6 +72,29 @@ class AutomationBridgeStorageTests(unittest.TestCase):
 
         self.assertEqual(result["code"], "invalid_plan_path")
 
+    @mock.patch("tools.automation_center.bridge.subprocess.run")
+    def test_delete_plan_removes_its_file_and_existing_scheduled_task(self, run):
+        saved = self.bridge.save_plan({
+            "name": "morning",
+            "serial": "ABC",
+            "steps": [{"action": "wake"}],
+        })
+        run.side_effect = [
+            subprocess.CompletedProcess([], 0, "", ""),
+            subprocess.CompletedProcess([], 0, "", ""),
+        ]
+
+        result = self.bridge.delete_plan(saved["path"])
+
+        self.assertTrue(result["ok"])
+        self.assertFalse(pathlib.Path(saved["path"]).exists())
+        self.assertEqual(run.call_args_list[0].args[0], [
+            "schtasks.exe", "/Query", "/TN", "scrcpy-many:morning",
+        ])
+        self.assertEqual(run.call_args_list[1].args[0], [
+            "schtasks.exe", "/Delete", "/TN", "scrcpy-many:morning", "/F",
+        ])
+
     @mock.patch("tools.automation_center.bridge.os.startfile", create=True)
     def test_open_artifact_allows_only_files_below_run_logs(self, startfile):
         artifact = self.root / "logs" / "automation" / "morning" / "run.log"

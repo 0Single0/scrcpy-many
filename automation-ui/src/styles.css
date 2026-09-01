@@ -29,3 +29,31 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .action-picker { display: inline-grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
 .action-picker span { display: inline-flex; align-items: center; gap: 7px; color: var(--navy); font-size: 13px; }
 .action-picker select { width: 260px; min-height: 36px; border: 1px solid #c8d3da; border-radius: 5px; padding: 0 9px; color: var(--ink); background: #edf1f3; font-weight: 700; }
+
+/* Plan library and action editor use dense rows so common edits stay scannable. */
+.library-record-button { width: 100%; min-height: 34px; margin-top: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #bdccd4; border-radius: 5px; color: var(--navy); background: #e8eef1; font-size: 12px; font-weight: 700; }
+.library-record-button:hover:not(:disabled) { background: #dce8ed; border-color: #aabec9; }
+.plans-column .plan-list { margin-top: 12px; gap: 5px; }
+.plan-row { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 30px; align-items: center; border: 1px solid transparent; border-radius: 5px; background: transparent; }
+.plan-row:hover, .plan-row.active { background: #e6edf0; border-color: #cad6dd; }
+.plan-open-button { min-width: 0; border: 0; border-radius: 4px; padding: 9px 8px 9px 10px; color: var(--ink); background: transparent; text-align: left; }
+.plan-open-button:focus-visible { outline-offset: -2px; }
+.plan-delete-button { width: 28px; height: 28px; display: inline-grid; place-items: center; border: 0; border-radius: 4px; color: #87949d; background: transparent; }
+.plan-delete-button:hover:not(:disabled) { color: var(--danger); background: #f5e8e8; }
+
+.timeline { gap: 9px; }
+.step-card { grid-template-columns: 38px minmax(0, 1fr) 32px; gap: 12px; min-height: 86px; align-items: start; border: 1px solid #d2dce2; border-left: 1px solid #d2dce2; border-radius: 6px; padding: 13px 12px; background: #fff; transition: border-color 120ms ease, background 120ms ease, opacity 120ms ease; }
+.step-card:hover { border-color: #b5c6d0; background: #fcfdfe; }
+.step-card.dragging { opacity: .52; border-style: dashed; background: #edf4f6; }
+.step-number { display: grid; gap: 5px; justify-items: center; align-content: start; color: #667987; font-size: 11px; font-weight: 800; line-height: 1; }
+.step-drag-handle { width: 28px; height: 28px; display: inline-grid; place-items: center; border: 1px solid transparent; border-radius: 4px; color: #6e8492; background: #edf2f4; cursor: grab; }
+.step-drag-handle:hover { border-color: #c4d1d8; color: var(--navy); background: #e1ebef; }
+.step-drag-handle:active { cursor: grabbing; }
+.step-body { min-width: 0; padding-top: 3px; }
+.step-body strong { color: #223746; font-size: 14px; line-height: 1.25; }
+.step-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 8px; margin-top: 10px; }
+.step-fields label { min-width: 0; gap: 4px; color: #71808b; font-size: 10px; letter-spacing: 0; }
+.step-fields input { min-height: 34px; border-color: #cbd6dc; border-radius: 4px; padding: 6px 8px; font-size: 13px; }
+.step-actions { display: flex; align-items: flex-start; justify-content: flex-end; padding-top: 1px; }
+.step-actions .icon-button { width: 30px; height: 30px; border-color: transparent; }
+.step-actions .icon-button:hover:not(:disabled) { border-color: #e4c5c7; background: #f7ebeb; }

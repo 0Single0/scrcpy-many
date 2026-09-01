@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -12,6 +12,7 @@ const createApi = (): AutomationApi => ({
   listPlans: vi.fn().mockResolvedValue([]),
   loadPlan: vi.fn(),
   savePlan: vi.fn(),
+  deletePlan: vi.fn(),
   startRecording: vi.fn(),
   stopRecording: vi.fn(),
   runPlanNow: vi.fn(),
@@ -41,7 +42,7 @@ describe("App", () => {
     expect(screen.getAllByText("2 个动作")).toHaveLength(1);
   });
 
-  it("keeps the editor rendered when a recorded plan has no schedule", async () => {
+  it("creates and selects a plan when recording stops from the plan library", async () => {
     const user = userEvent.setup();
     const api = createApi();
     api.startRecording = vi.fn().mockResolvedValue({ ok: true });
@@ -57,11 +58,39 @@ describe("App", () => {
     render(<App api={api} />);
 
     await user.click(await screen.findByRole("button", { name: /Pixel 8/ }));
-    await user.click(screen.getByRole("button", { name: "录制操作" }));
+    await user.click(screen.getByRole("button", { name: "录制新计划" }));
     await user.click(screen.getByRole("button", { name: "停止录制" }));
 
     expect(screen.getByLabelText("每日时间")).toHaveValue("21:00");
     expect(screen.getAllByText("1 个动作")).toHaveLength(1);
+  });
+
+  it("deletes a saved plan from the library", async () => {
+    const user = userEvent.setup();
+    const api = createApi();
+    api.listPlans = vi.fn()
+      .mockResolvedValueOnce([{ name: "morning", path: "D:/plans/morning.json", serial: "ABC123" }])
+      .mockResolvedValue([]);
+    api.deletePlan = vi.fn().mockResolvedValue({ ok: true, path: "D:/plans/morning.json" });
+    render(<App api={api} />);
+
+    await user.click(await screen.findByRole("button", { name: "删除计划：morning" }));
+
+    expect(api.deletePlan).toHaveBeenCalledWith("D:/plans/morning.json");
+    expect(screen.queryByRole("button", { name: "morning" })).not.toBeInTheDocument();
+  });
+
+  it("reorders action steps when the grip is dragged onto another step", async () => {
+    const user = userEvent.setup();
+    render(<App api={createApi()} />);
+    await user.selectOptions(screen.getByLabelText("添加动作"), "wait");
+
+    fireEvent.dragStart(screen.getByRole("button", { name: "拖拽步骤 2" }));
+    fireEvent.dragOver(screen.getByRole("article", { name: "步骤 1：唤醒屏幕" }));
+    fireEvent.drop(screen.getByRole("article", { name: "步骤 1：唤醒屏幕" }));
+
+    const labels = Array.from(document.querySelectorAll(".step-card strong"), (node) => node.textContent);
+    expect(labels).toEqual(["等待", "唤醒屏幕"]);
   });
 
   it("queries devices once when using the default WebView bridge", async () => {
@@ -72,6 +101,7 @@ describe("App", () => {
         list_plans: api.listPlans,
         load_plan: api.loadPlan,
         save_plan: api.savePlan,
+        delete_plan: api.deletePlan,
         start_recording: api.startRecording,
         stop_recording: api.stopRecording,
         run_plan_now: api.runPlanNow,
@@ -100,6 +130,7 @@ describe("App", () => {
         list_plans: api.listPlans,
         load_plan: api.loadPlan,
         save_plan: api.savePlan,
+        delete_plan: api.deletePlan,
         start_recording: api.startRecording,
         stop_recording: api.stopRecording,
         run_plan_now: api.runPlanNow,

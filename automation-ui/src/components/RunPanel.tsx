@@ -1,15 +1,13 @@
-import { CalendarClock, CircleStop, History, Play, Radio, Save } from "lucide-react";
+import { CalendarClock, History, Play, Save } from "lucide-react";
 
 import type { BridgeResult, RunSummary } from "../api";
 
 type Props = {
   canAct: boolean;
-  recording: boolean;
   pending: string | null;
   result: BridgeResult | null;
   runs: RunSummary[];
   onSave: () => void;
-  onRecord: () => void;
   onRun: (dryRun: boolean) => void;
   onSchedule: () => void;
   onRemoveSchedule: () => void;
@@ -23,14 +21,11 @@ const ResultMessage = ({ result }: { result: BridgeResult | null }) => {
   return <p className="result success">操作已完成</p>;
 };
 
-export const RunPanel = ({ canAct, recording, pending, result, runs, onSave, onRecord, onRun, onSchedule, onRemoveSchedule, onOpenArtifact }: Props) => (
+export const RunPanel = ({ canAct, pending, result, runs, onSave, onRun, onSchedule, onRemoveSchedule, onOpenArtifact }: Props) => (
   <aside className="run-panel" aria-label="执行控制">
     <div className="section-title"><div><span className="eyebrow">COMMAND CENTER</span><h2>执行</h2></div></div>
     <div className="command-stack">
       <button className="primary-button" type="button" onClick={onSave} disabled={!canAct || pending !== null}><Save size={17} />保存计划</button>
-      <div className="split-actions">
-        <button className="secondary-button" type="button" onClick={onRecord} disabled={!canAct || pending !== null}>{recording ? <CircleStop size={17} /> : <Radio size={17} />}{recording ? "停止录制" : "录制操作"}</button>
-      </div>
       <button className="secondary-button" type="button" onClick={() => onRun(true)} disabled={!canAct || pending !== null}><Play size={17} />试运行</button>
       <button className="run-button" type="button" onClick={() => onRun(false)} disabled={!canAct || pending !== null}><Play size={17} />立即运行</button>
       <button className="secondary-button" type="button" onClick={onSchedule} disabled={!canAct || pending !== null}><CalendarClock size={17} />启用定时</button>

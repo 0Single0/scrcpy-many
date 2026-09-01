@@ -174,6 +174,43 @@ class AutomationBridge:
             return self._failure("write_error", str(exc))
         return {"ok": True, "path": str(target)}
 
+    def delete_plan(self, path: str) -> dict[str, object]:
+        """Remove one plan and its scheduled task, if Windows has one."""
+        try:
+            target = self._plan_path(path)
+            plan = load_automation_plan(target)
+        except ValueError as exc:
+            return self._failure("invalid_plan_path", str(exc))
+        except PlanValidationError as exc:
+            return self._failure("validation_error", str(exc))
+
+        task_name = f"scrcpy-many:{plan.name}"
+        try:
+            query = subprocess.run(
+                ["schtasks.exe", "/Query", "/TN", task_name],
+                text=True,
+                capture_output=True,
+                check=False,
+                creationflags=_CREATE_NO_WINDOW,
+            )
+            if not query.returncode:
+                removed = subprocess.run(
+                    build_schtasks_delete_command(task_name),
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                    creationflags=_CREATE_NO_WINDOW,
+                )
+                if removed.returncode:
+                    return self._failure(
+                        "scheduler_error",
+                        removed.stderr.strip() or "Could not remove scheduled task",
+                    )
+            target.unlink()
+        except OSError as exc:
+            return self._failure("delete_error", str(exc))
+        return {"ok": True, "path": str(target)}
+
     def run_plan_now(self, path: str, dry_run: bool = False) -> dict[str, object]:
         try:
             plan_path = self._plan_path(path)

@@ -1,4 +1,4 @@
-import { FilePlus2, FolderOpen } from "lucide-react";
+import { CircleStop, FilePlus2, FolderOpen, Radio, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createWebViewApi, type AutomationApi, type BridgeResult, type Device, type PlanDocument, type PlanSummary, type RunSummary } from "./api";
@@ -53,6 +53,16 @@ export const App = ({ api }: Props) => {
     setPending("保存计划");
     try { const saved = applyResult(await activeApi.savePlan(document, path ?? undefined)); if (saved.ok && saved.path) { setPath(saved.path); await refreshPlans(); await refreshRuns(document.name); } } finally { setPending(null); }
   };
+  const deletePlan = async (plan: PlanSummary) => {
+    setPending("删除计划");
+    try {
+      const deleted = applyResult(await activeApi.deletePlan(plan.path));
+      if (deleted.ok) {
+        if (path === plan.path) createPlan();
+        await refreshPlans();
+      }
+    } finally { setPending(null); }
+  };
   const record = async () => {
     setPending(recording ? "停止录制" : "开始录制");
     try {
@@ -82,9 +92,9 @@ export const App = ({ api }: Props) => {
     <div className="workspace">
       <header className="app-header"><div><span className="eyebrow">SCRCPY MANY / AUTOMATION</span><h1>自动化中心</h1></div><div className="header-actions"><button type="button" className="header-button" onClick={createPlan}><FilePlus2 size={17} />新建计划</button><span className="current-plan"><FolderOpen size={16} />{currentPlan?.name ?? "未保存"}</span></div></header>
       <div className="content-grid">
-        <nav className="plans-column" aria-label="已保存计划"><div className="section-title"><div><span className="eyebrow">SAVED PLANS</span><h2>计划库</h2></div></div><div className="plan-list">{plans.length === 0 ? <p className="empty-copy">保存后会显示在这里</p> : plans.map((plan) => <button key={plan.path} className={`plan-row${plan.path === path ? " active" : ""}`} type="button" onClick={() => void openPlan(plan)}><strong>{plan.name}</strong><small>{plan.serial}</small></button>)}</div></nav>
+        <nav className="plans-column" aria-label="已保存计划"><div className="section-title"><div><span className="eyebrow">SAVED PLANS</span><h2>计划库</h2></div></div><button className="library-record-button" type="button" onClick={() => void record()} disabled={!document.serial || pending !== null}>{recording ? <CircleStop size={16} /> : <Radio size={16} />}{recording ? "停止录制" : "录制新计划"}</button><div className="plan-list">{plans.length === 0 ? <p className="empty-copy">保存后会显示在这里</p> : plans.map((plan) => <article key={plan.path} className={`plan-row${plan.path === path ? " active" : ""}`}><button className="plan-open-button" type="button" onClick={() => void openPlan(plan)}><strong>{plan.name}</strong><small>{plan.serial}</small></button><button className="plan-delete-button" type="button" onClick={() => void deletePlan(plan)} aria-label={`删除计划：${plan.name}`} title={`删除计划：${plan.name}`} disabled={pending !== null}><Trash2 size={15} /></button></article>)}</div></nav>
         <PlanEditor document={document} onChange={setDocument} />
-        <RunPanel canAct={canAct} recording={recording} pending={pending} result={result} runs={runs} onSave={() => void save()} onRecord={() => void record()} onRun={(dryRun) => void run(dryRun)} onSchedule={() => void schedule()} onRemoveSchedule={() => void schedule(true)} onOpenArtifact={(artifactPath) => void openArtifact(artifactPath)} />
+        <RunPanel canAct={canAct} pending={pending} result={result} runs={runs} onSave={() => void save()} onRun={(dryRun) => void run(dryRun)} onSchedule={() => void schedule()} onRemoveSchedule={() => void schedule(true)} onOpenArtifact={(artifactPath) => void openArtifact(artifactPath)} />
       </div>
     </div>
   </main>;
