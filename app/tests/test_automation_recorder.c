@@ -17,8 +17,18 @@ main(int argc, char *argv[]) {
     assert(sc_automation_recorder_record_touch(
         SC_AUTOMATION_TOUCH_DOWN, 10, 20, 1080, 1920, 0));
     assert(sc_automation_recorder_record_touch(
-        SC_AUTOMATION_TOUCH_UP, 10, 20, 1080, 1920, 100));
-    assert(sc_automation_recorder_record_key(4, 50));
+        SC_AUTOMATION_TOUCH_MOTION, 10, 40, 1080, 1920, 1));
+    assert(sc_automation_recorder_record_touch(
+        SC_AUTOMATION_TOUCH_MOTION, 10, 80, 1080, 1920, 2));
+    assert(sc_automation_recorder_record_touch(
+        SC_AUTOMATION_TOUCH_MOTION, 10, 100, 1080, 1920, 6));
+    assert(sc_automation_recorder_record_touch(
+        SC_AUTOMATION_TOUCH_UP, 10, 120, 1080, 1920, 16));
+    assert(sc_automation_recorder_record_touch(
+        SC_AUTOMATION_TOUCH_DOWN, 30, 40, 1080, 1920, 500));
+    assert(sc_automation_recorder_record_touch(
+        SC_AUTOMATION_TOUCH_UP, 30, 40, 1080, 1920, 10));
+    assert(sc_automation_recorder_record_key(4, 400));
     sc_automation_recorder_stop();
 
     FILE *file = fopen(path, "rb");
@@ -31,6 +41,13 @@ main(int argc, char *argv[]) {
     assert(strstr(buffer, "\"action\":\"tap\"") != NULL);
     assert(strstr(buffer, "\"action\":\"keyevent\",\"code\":4") != NULL);
     assert(strstr(buffer, "\"key_action\"") == NULL);
-    assert(strstr(buffer, "\"ms\":50") != NULL);
+    assert(strstr(buffer,
+                  "\"action\":\"swipe\",\"x1\":10,\"y1\":20,\"x2\":10,\"y2\":120,\"duration_ms\":25") != NULL);
+    assert(strstr(buffer, "\"action\":\"wait\",\"ms\":500}") != NULL);
+    assert(strstr(buffer, "\"action\":\"wait\",\"ms\":400}") != NULL);
+    assert(strstr(buffer, "\"action\":\"wait\",\"ms\":1}") == NULL);
+    assert(strstr(buffer, "\"action\":\"wait\",\"ms\":2}") == NULL);
+    assert(strstr(buffer, "\"action\":\"wait\",\"ms\":6}") == NULL);
+    assert(strstr(buffer, "\"action\":\"wait\",\"ms\":16}") == NULL);
     return 0;
 }

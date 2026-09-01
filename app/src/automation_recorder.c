@@ -3,12 +3,17 @@
 #include <stdio.h>
 #include <string.h>
 
+#define SC_AUTOMATION_RECORDER_MIN_WAIT_MS 200
+
 struct sc_automation_recorder {
     FILE *file;
     char path[1024];
     char temp_path[1024];
     bool first_step;
+    bool has_recorded_action;
+    uint32_t pending_wait_ms;
     bool touch_down;
+    uint32_t touch_elapsed_ms;
     int32_t touch_start_x;
     int32_t touch_start_y;
     int32_t touch_last_x;
@@ -48,8 +53,12 @@ step_prefix(void) {
 }
 
 static bool
-record_wait(uint32_t elapsed_ms) {
-    if (!elapsed_ms) {
+record_pending_wait(void) {
+    uint32_t elapsed_ms = recorder.pending_wait_ms;
+    recorder.pending_wait_ms = 0;
+
+    if (!recorder.has_recorded_action
+            || elapsed_ms < SC_AUTOMATION_RECORDER_MIN_WAIT_MS) {
         return true;
     }
     if (!step_prefix()) {
@@ -57,6 +66,15 @@ record_wait(uint32_t elapsed_ms) {
     }
     fprintf(recorder.file, "{\"action\":\"wait\",\"ms\":%u}", elapsed_ms);
     return true;
+}
+
+static void
+add_pending_wait(uint32_t elapsed_ms) {
+    if (UINT32_MAX - recorder.pending_wait_ms < elapsed_ms) {
+        recorder.pending_wait_ms = UINT32_MAX;
+    } else {
+        recorder.pending_wait_ms += elapsed_ms;
+    }
 }
 
 bool
@@ -77,7 +95,10 @@ sc_automation_recorder_start(const char *path, const char *serial,
     recorder.file = file;
     strcpy(recorder.path, path);
     recorder.first_step = true;
+    recorder.has_recorded_action = false;
+    recorder.pending_wait_ms = 0;
     recorder.touch_down = false;
+    recorder.touch_elapsed_ms = 0;
     fputs("{\n  \"name\": \"recorded-actions\",\n  \"serial\": ", file);
     json_string(file, serial);
     fprintf(file, ",\n  \"metadata\": {\"width\": %u, \"height\": %u},\n  \"steps\": [", width, height);
@@ -97,27 +118,32 @@ sc_automation_recorder_record_touch(uint8_t action, int32_t x, int32_t y,
     if (!recorder.file || x < 0 || y < 0) {
         return false;
     }
-    if (!record_wait(elapsed_ms)) {
-        return false;
-    }
     switch (action) {
         case SC_AUTOMATION_TOUCH_DOWN:
+            add_pending_wait(elapsed_ms);
             recorder.touch_down = true;
+            recorder.touch_elapsed_ms = 0;
             recorder.touch_start_x = recorder.touch_last_x = x;
             recorder.touch_start_y = recorder.touch_last_y = y;
             return true;
         case SC_AUTOMATION_TOUCH_MOTION:
-            if (recorder.touch_down) {
-                recorder.touch_last_x = x;
-                recorder.touch_last_y = y;
+            if (!recorder.touch_down) {
+                return false;
             }
-            return recorder.touch_down;
+            recorder.touch_elapsed_ms += elapsed_ms;
+            recorder.touch_last_x = x;
+            recorder.touch_last_y = y;
+            return true;
         case SC_AUTOMATION_TOUCH_UP:
             if (!recorder.touch_down) {
                 return false;
             }
+            recorder.touch_elapsed_ms += elapsed_ms;
             recorder.touch_last_x = x;
             recorder.touch_last_y = y;
+            if (!record_pending_wait()) {
+                return false;
+            }
             if (!step_prefix()) {
                 return false;
             }
@@ -127,11 +153,12 @@ sc_automation_recorder_record_touch(uint8_t action, int32_t x, int32_t y,
                         x, y);
             } else {
                 fprintf(recorder.file,
-                        "{\"action\":\"swipe\",\"x1\":%d,\"y1\":%d,\"x2\":%d,\"y2\":%d,\"duration_ms\":300}",
+                        "{\"action\":\"swipe\",\"x1\":%d,\"y1\":%d,\"x2\":%d,\"y2\":%d,\"duration_ms\":%u}",
                         recorder.touch_start_x, recorder.touch_start_y,
-                        x, y);
+                        x, y, recorder.touch_elapsed_ms);
             }
             recorder.touch_down = false;
+            recorder.has_recorded_action = true;
             return !ferror(recorder.file);
         default:
             return false;
@@ -140,13 +167,18 @@ sc_automation_recorder_record_touch(uint8_t action, int32_t x, int32_t y,
 
 bool
 sc_automation_recorder_record_key(uint32_t keycode, uint32_t elapsed_ms) {
-    if (!recorder.file || !record_wait(elapsed_ms)) {
+    if (!recorder.file) {
+        return false;
+    }
+    add_pending_wait(elapsed_ms);
+    if (!record_pending_wait()) {
         return false;
     }
     if (!step_prefix()) {
         return false;
     }
     fprintf(recorder.file, "{\"action\":\"keyevent\",\"code\":%u}", keycode);
+    recorder.has_recorded_action = true;
     return !ferror(recorder.file);
 }
 
