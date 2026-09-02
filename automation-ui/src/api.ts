@@ -30,6 +30,10 @@ export type BridgeResult = {
   completed_steps?: number;
   error?: string | null;
   run_dir?: string;
+  status?: string;
+  running?: boolean;
+  cancelling?: boolean;
+  cancelled?: boolean;
   document?: PlanDocument;
 };
 
@@ -42,6 +46,9 @@ export type AutomationApi = {
   startRecording: (serial: string) => Promise<BridgeResult>;
   stopRecording: () => Promise<BridgeResult>;
   runPlanNow: (path: string, dryRun: boolean) => Promise<BridgeResult>;
+  startPlanRun: (path: string, dryRun: boolean) => Promise<BridgeResult>;
+  getPlanRunStatus: () => Promise<BridgeResult>;
+  cancelPlanRun: () => Promise<BridgeResult>;
   setSchedule: (path: string) => Promise<BridgeResult>;
   removeSchedule: (name: string) => Promise<BridgeResult>;
   listRuns: (name: string) => Promise<RunSummary[]>;
@@ -57,6 +64,9 @@ type PyWebViewApi = {
   start_recording: (serial: string) => Promise<BridgeResult>;
   stop_recording: () => Promise<BridgeResult>;
   run_plan_now: (path: string, dryRun: boolean) => Promise<BridgeResult>;
+  start_plan_run: (path: string, dryRun: boolean) => Promise<BridgeResult>;
+  get_plan_run_status: () => Promise<BridgeResult>;
+  cancel_plan_run: () => Promise<BridgeResult>;
   set_schedule: (path: string) => Promise<BridgeResult>;
   remove_schedule: (name: string) => Promise<BridgeResult>;
   list_runs: (name: string) => Promise<RunSummary[]>;
@@ -85,6 +95,9 @@ export const createWebViewApi = (): AutomationApi => {
     startRecording: (serial) => currentBridge().start_recording(serial),
     stopRecording: () => currentBridge().stop_recording(),
     runPlanNow: (path, dryRun) => currentBridge().run_plan_now(path, dryRun),
+    startPlanRun: (path, dryRun) => currentBridge().start_plan_run(path, dryRun),
+    getPlanRunStatus: () => currentBridge().get_plan_run_status(),
+    cancelPlanRun: () => currentBridge().cancel_plan_run(),
     setSchedule: (path) => currentBridge().set_schedule(path),
     removeSchedule: (name) => currentBridge().remove_schedule(name),
     listRuns: (name) => currentBridge().list_runs(name),

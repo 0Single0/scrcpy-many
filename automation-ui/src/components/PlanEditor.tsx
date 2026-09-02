@@ -26,6 +26,10 @@ const fieldDefinitions: Record<string, FieldDefinition[]> = {
   screenshot: [["name", "fileName", "状态"]],
 };
 
+// Keep the editor focused on the actions supported by the streamlined workflow.
+// The executor still understands legacy actions so existing plans remain usable.
+const editableActions = ["wait", "wake", "dismiss_keyguard", "launch", "tap", "swipe"] as const;
+
 const createStep = (action: string): AutomationStep => (fieldDefinitions[action] ?? []).reduce<AutomationStep>((step, [key, , value]) => ({ ...step, [key]: /^\d+$/.test(value) ? Number(value) : value }), { action });
 const timeOptions = (value: string): MenuOption[] => {
   const options: MenuOption[] = [];
@@ -122,7 +126,7 @@ export const PlanEditor = ({ document, devices, copy, onChange }: Props) => {
       </DndContext>
     </div>
     <div className="add-action-row">
-      <MenuSelect ariaLabel={copy.addAction} value="" options={Object.entries(labels).map(([value, label]) => ({ value, label }))} placeholder={copy.addAction} onChange={addStep} />
+      <MenuSelect ariaLabel={copy.addAction} value="" options={editableActions.map((value) => ({ value, label: labels[value] }))} placeholder={copy.addAction} onChange={addStep} />
     </div>
   </section>;
 };

@@ -2,6 +2,7 @@ import json
 import pathlib
 import subprocess
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -249,6 +250,20 @@ class ActionExecutionTests(unittest.TestCase):
 
         self.assertTrue(result.success)
         self.assertEqual(result.completed_steps, 2)
+        self.assertEqual(transport.calls, [])
+
+    def test_cancelled_run_stops_before_executing_a_step(self):
+        transport = FakeAdbTransport()
+        plan = self.make_plan([{"action": "wake"}])
+        cancel_event = threading.Event()
+        cancel_event.set()
+
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_plan(plan, transport, pathlib.Path(directory), cancel_event=cancel_event)
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.completed_steps, 0)
+        self.assertEqual(result.error, "Run cancelled")
         self.assertEqual(transport.calls, [])
 
     def test_parse_uiautomator_xml_extracts_bounds(self):

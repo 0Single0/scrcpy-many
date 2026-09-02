@@ -9,6 +9,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from typing import Any
@@ -84,6 +85,10 @@ class RunResult:
 
 class ActionError(RuntimeError):
     """Raised when an action cannot be completed from the current UI state."""
+
+
+class RunCancelled(RuntimeError):
+    """Raised when the owner requests that an automation run stop."""
 
 
 class AdbCommandError(RuntimeError):
@@ -331,10 +336,12 @@ def wait_for_device(
     serial: str,
     timeout: float,
     poll_interval: float = 1.0,
+    cancel_event: threading.Event | None = None,
 ) -> None:
     """Wait until ADB reports the explicit serial as ready."""
     deadline = time.monotonic() + timeout
     while True:
+        _raise_if_cancelled(cancel_event)
         remaining = max(0.1, deadline - time.monotonic())
         try:
             result = transport.run(serial, ["get-state"], timeout=min(remaining, 10.0))
@@ -363,7 +370,10 @@ def wait_for_device(
             if time.monotonic() >= deadline:
                 raise AdbCommandError(serial, ["get-state"], f"Device state: {state or 'missing'}")
 
-        time.sleep(min(poll_interval, max(0.0, deadline - time.monotonic())))
+        _wait_with_cancel(
+            min(poll_interval, max(0.0, deadline - time.monotonic())),
+            cancel_event,
+        )
 
 
 _BOUNDS_PATTERN = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
@@ -408,11 +418,33 @@ def _find_text_node(nodes: list[UiNode], text: str) -> UiNode:
     return node
 
 
-def _execute_step(step: Step, transport: Any, serial: str, run_dir: pathlib.Path) -> None:
+def _raise_if_cancelled(cancel_event: threading.Event | None) -> None:
+    if cancel_event is not None and cancel_event.is_set():
+        raise RunCancelled("Run cancelled")
+
+
+def _wait_with_cancel(
+    seconds: float,
+    cancel_event: threading.Event | None,
+) -> None:
+    if cancel_event is None:
+        time.sleep(seconds)
+        return
+    if cancel_event.wait(seconds):
+        raise RunCancelled("Run cancelled")
+
+
+def _execute_step(
+    step: Step,
+    transport: Any,
+    serial: str,
+    run_dir: pathlib.Path,
+    cancel_event: threading.Event | None = None,
+) -> None:
     action = step.action
     params = step.params
     if action == "wait":
-        time.sleep(params["ms"] / 1000.0)
+        _wait_with_cancel(params["ms"] / 1000.0, cancel_event)
     elif action == "wake":
         transport.run(serial, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"])
     elif action == "dismiss_keyguard":
@@ -455,6 +487,7 @@ def run_plan(
     transport: Any,
     run_dir: pathlib.Path,
     dry_run: bool = False,
+    cancel_event: threading.Event | None = None,
 ) -> RunResult:
     """Execute all plan steps and return a structured result."""
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -463,21 +496,37 @@ def run_plan(
     with log_path.open("a", encoding="utf-8") as log:
         log.write(f"plan={plan.name} serial={plan.serial} dry_run={dry_run}\n")
         try:
+            _raise_if_cancelled(cancel_event)
             if not dry_run:
-                wait_for_device(transport, plan.serial, timeout=30.0)
+                wait_for_device(
+                    transport,
+                    plan.serial,
+                    timeout=30.0,
+                    cancel_event=cancel_event,
+                )
             for index, step in enumerate(plan.steps):
+                _raise_if_cancelled(cancel_event)
                 log.write(f"step={index} action={step.action}\n")
                 if not dry_run:
                     try:
-                        _execute_step(step, transport, plan.serial, run_dir)
+                        _execute_step(
+                            step, transport, plan.serial, run_dir, cancel_event,
+                        )
                     except AdbCommandError:
-                        time.sleep(1.0)
-                        _execute_step(step, transport, plan.serial, run_dir)
+                        _wait_with_cancel(1.0, cancel_event)
+                        _raise_if_cancelled(cancel_event)
+                        _execute_step(
+                            step, transport, plan.serial, run_dir, cancel_event,
+                        )
                     except ActionError:
                         raise
                 completed += 1
             log.write("result=success\n")
             return RunResult(True, completed)
+        except RunCancelled as exc:
+            message = str(exc)
+            log.write("result=cancelled\n")
+            return RunResult(False, completed, message)
         except (AdbCommandError, ActionError, OSError) as exc:
             message = str(exc)
             log.write(f"result=failure error={message}\n")

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 from typing import Any
 
 from tools.scrcpy_automation import (
@@ -59,6 +60,10 @@ class AutomationBridge:
         self._recording_path: Path | None = None
         self._recording_serial: str | None = None
         self._recording_window_title: str | None = None
+        self._run_thread: threading.Thread | None = None
+        self._run_cancel_event: threading.Event | None = None
+        self._run_status: dict[str, object] | None = None
+        self._run_lock = threading.Lock()
 
     @staticmethod
     def _failure(code: str, message: str) -> dict[str, object]:
@@ -235,6 +240,109 @@ class AutomationBridge:
             json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
         return {"ok": True, "run_dir": str(run_dir), **summary}
+
+    def start_plan_run(self, path: str, dry_run: bool = False) -> dict[str, object]:
+        """Start a plan on a worker thread so the UI can cancel it safely."""
+        try:
+            plan_path = self._plan_path(path)
+            plan = load_automation_plan(plan_path)
+        except ValueError as exc:
+            return self._failure("invalid_plan_path", str(exc))
+        except PlanValidationError as exc:
+            return self._failure("validation_error", str(exc))
+
+        with self._run_lock:
+            if self._run_thread is not None and self._run_thread.is_alive():
+                return self._failure("run_active", "An automation run is already active")
+
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+            run_dir = self.logs_dir / self._plan_filename(plan.name)[:-5] / timestamp
+            cancel_event = threading.Event()
+            self._run_cancel_event = cancel_event
+            self._run_status = {
+                "running": True,
+                "run_dir": str(run_dir),
+                "dry_run": bool(dry_run),
+            }
+
+            def execute() -> None:
+                try:
+                    result = run_plan(
+                        plan,
+                        self.transport,
+                        run_dir,
+                        dry_run=dry_run,
+                        cancel_event=cancel_event,
+                    )
+                    cancelled = result.error == "Run cancelled"
+                    summary = {
+                        "running": False,
+                        "status": "cancelled" if cancelled else "success" if result.success else "failure",
+                        "cancelled": cancelled,
+                        "success": result.success,
+                        "completed_steps": result.completed_steps,
+                        "error": result.error,
+                        "run_dir": str(run_dir),
+                        "dry_run": bool(dry_run),
+                    }
+                except Exception as exc:
+                    summary = {
+                        "running": False,
+                        "status": "failure",
+                        "cancelled": False,
+                        "success": False,
+                        "completed_steps": 0,
+                        "error": str(exc),
+                        "run_dir": str(run_dir),
+                        "dry_run": bool(dry_run),
+                    }
+                try:
+                    run_dir.mkdir(parents=True, exist_ok=True)
+                    (run_dir / "result.json").write_text(
+                        json.dumps(
+                            {key: value for key, value in summary.items() if key != "running"},
+                            ensure_ascii=False,
+                            indent=2,
+                        ) + "\n",
+                        encoding="utf-8",
+                    )
+                except OSError as exc:
+                    summary["status"] = "failure"
+                    summary["cancelled"] = False
+                    summary["success"] = False
+                    summary["error"] = str(exc)
+                with self._run_lock:
+                    self._run_status = summary
+
+            self._run_thread = threading.Thread(
+                target=execute,
+                name="scrcpy-automation-run",
+                daemon=True,
+            )
+            self._run_thread.start()
+            return {"ok": True, "running": True, "run_dir": str(run_dir)}
+
+    def get_plan_run_status(self) -> dict[str, object]:
+        """Return the state of the most recently started asynchronous run."""
+        with self._run_lock:
+            if self._run_status is None:
+                return self._failure("no_run", "No automation run has been started")
+            status = dict(self._run_status)
+            if self._run_thread is not None and self._run_thread.is_alive():
+                status["running"] = True
+            return {"ok": True, **status}
+
+    def cancel_plan_run(self) -> dict[str, object]:
+        """Request cancellation of the current run without killing its process."""
+        with self._run_lock:
+            if (
+                self._run_thread is None
+                or not self._run_thread.is_alive()
+                or self._run_cancel_event is None
+            ):
+                return self._failure("no_active_run", "No automation run is active")
+            self._run_cancel_event.set()
+            return {"ok": True, "cancelling": True}
 
     def start_recording(self, serial: str) -> dict[str, object]:
         """Start one owned scrcpy recording session for a ready device."""

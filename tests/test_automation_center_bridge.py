@@ -4,10 +4,11 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
-from tools.scrcpy_automation import FakeAdbTransport
+from tools.scrcpy_automation import FakeAdbTransport, RunResult
 
 
 class AutomationBridgeStorageTests(unittest.TestCase):
@@ -63,6 +64,42 @@ class AutomationBridgeStorageTests(unittest.TestCase):
         self.assertEqual(len(runs), 1)
         self.assertEqual(runs[0]["status"], "success")
         self.assertTrue(pathlib.Path(runs[0]["run_dir"], "run.log").is_file())
+
+    def test_started_run_can_be_cancelled_and_reports_cancelled_status(self):
+        saved = self.bridge.save_plan({
+            "name": "morning",
+            "serial": "ABC",
+            "steps": [{"action": "wake"}],
+        })
+        entered_runner = threading.Event()
+
+        def cancellable_runner(plan, transport, run_dir, dry_run, cancel_event):
+            entered_runner.set()
+            cancel_event.wait(1)
+            return RunResult(False, 0, "Run cancelled")
+
+        with mock.patch(
+            "tools.automation_center.bridge.run_plan",
+            side_effect=cancellable_runner,
+        ):
+            started = self.bridge.start_plan_run(saved["path"], dry_run=False)
+            self.assertTrue(started["ok"])
+            self.assertTrue(started["running"])
+            self.assertTrue(entered_runner.wait(0.5))
+
+            cancelled = self.bridge.cancel_plan_run()
+            self.assertTrue(cancelled["ok"])
+            self.assertTrue(cancelled["cancelling"])
+
+            self.bridge._run_thread.join(1)
+            self.assertFalse(self.bridge._run_thread.is_alive())
+            status = self.bridge.get_plan_run_status()
+
+        self.assertFalse(status["running"])
+        self.assertTrue(status["cancelled"])
+        self.assertEqual(status["error"], "Run cancelled")
+        runs = self.bridge.list_runs("morning")
+        self.assertEqual(runs[0]["status"], "cancelled")
 
     def test_load_plan_rejects_a_path_outside_portable_plans(self):
         outside = self.root.parent / "outside.json"
